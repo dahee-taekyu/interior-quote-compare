@@ -5,8 +5,9 @@ import type { Category, Vendor } from "@/lib/types";
 import ComparisonMatrix from "./ComparisonMatrix";
 import VendorEditor from "./VendorEditor";
 import CostChart from "./CostChart";
+import UploadParse from "./UploadParse";
 
-type Tab = "matrix" | "edit" | "chart";
+type Tab = "matrix" | "upload" | "edit" | "chart";
 
 export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -30,6 +31,7 @@ export default function App() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "matrix", label: "비교 매트릭스" },
+    { key: "upload", label: "견적서 업로드" },
     { key: "edit", label: "견적 입력" },
     { key: "chart", label: "비용 구성 차트" },
   ];
@@ -64,6 +66,8 @@ export default function App() {
         <p className="text-sm text-slate-500">불러오는 중…</p>
       ) : tab === "matrix" ? (
         <ComparisonMatrix categories={categories} vendors={vendors} />
+      ) : tab === "upload" ? (
+        <UploadParse categories={categories} onChanged={reload} />
       ) : tab === "edit" ? (
         <VendorEditor categories={categories} vendors={vendors} onChanged={reload} />
       ) : (

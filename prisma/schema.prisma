@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id    Int         @id @default(autoincrement())
+  key   String      @unique
+  name  String
+  order Int         @default(0)
+  items QuoteItem[]
+}
+
+model Vendor {
+  id          Int         @id @default(autoincrement())
+  name        String
+  contact     String?
+  memo        String?
+  vatIncluded Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  items       QuoteItem[]
+}
+
+// 공정 상태:
+// INCLUDED  = 포함 (금액 있음)
+// EXCLUDED  = 미포함 (추가금 위험)
+// BUNDLED   = 다른 항목에 포함 (금액 중복 계산 금지)
+// UNKNOWN   = 확인 필요
+model QuoteItem {
+  id         Int      @id @default(autoincrement())
+  vendorId   Int
+  categoryId Int
+  status     String   @default("UNKNOWN")
+  amount     Int      @default(0)
+  detail     String?
+  memo       String?
+  vendor     Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, categoryId])
+}

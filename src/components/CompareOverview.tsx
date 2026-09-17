@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import type { Category, Vendor } from "@/lib/types";
 import {
   categoryAmount,
   categoryStatus,
-  formatKRW,
   formatMan,
   marketAverage,
   summarize,
 } from "@/lib/calc";
-
-const BASELINE_KEY = "iqc-baseline-vendor";
+import { useBaseline } from "@/lib/useBaseline";
 
 function DiffPill({ diff }: { diff: number }) {
   if (diff === 0)
@@ -51,49 +48,33 @@ function StatusPill({ status }: { status: string }) {
 export default function CompareOverview({
   categories,
   vendors,
+  onOpenCategory,
 }: {
   categories: Category[];
   vendors: Vendor[];
+  onOpenCategory: (categoryId: number) => void;
 }) {
-  const [baselineId, setBaselineId] = useState<number | null>(null);
-  const [openCategoryId, setOpenCategoryId] = useState<number | null>(null);
+  const { baseline, chooseBaseline } = useBaseline(vendors);
 
-  // 기준 업체 복원/저장 (브라우저별 편의 기능)
-  useEffect(() => {
-    try {
-      const saved = Number(localStorage.getItem(BASELINE_KEY));
-      if (saved && vendors.some((v) => v.id === saved)) setBaselineId(saved);
-      else if (vendors.length > 0) setBaselineId(vendors[0].id);
-    } catch {
-      if (vendors.length > 0) setBaselineId(vendors[0].id);
-    }
-  }, [vendors]);
-
-  const chooseBaseline = (id: number) => {
-    setBaselineId(id);
-    try {
-      localStorage.setItem(BASELINE_KEY, String(id));
-    } catch {}
-  };
-
-  if (vendors.length === 0) {
+  if (vendors.length === 0 || !baseline) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
-        아직 등록된 업체가 없습니다. <b>견적 입력</b> 탭에서 업체를 추가하세요.
+        아직 등록된 업체가 없습니다. <b>견적 입력</b>에서 업체를 추가하세요.
       </div>
     );
   }
 
   const summaries = summarize(vendors, categories);
   const summaryOf = (id: number) => summaries.find((s) => s.vendorId === id)!;
-  const baseline = vendors.find((v) => v.id === baselineId) ?? vendors[0];
   const bestAdjusted = Math.min(...summaries.map((s) => s.adjustedTotal));
-  const gridCols = { gridTemplateColumns: `200px repeat(${vendors.length}, minmax(170px, 1fr))` };
+  const gridCols = {
+    gridTemplateColumns: `220px repeat(${vendors.length}, minmax(160px, 1fr))`,
+  };
 
   return (
     <div className="space-y-6">
-      {/* 업체 요약 카드 */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${vendors.length}, minmax(200px, 1fr))` }}>
+      {/* 업체 요약 카드 — 업체가 많아지면 자동 줄바꿈 */}
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))]">
         {vendors.map((v) => {
           const s = summaryOf(v.id);
           const isBaseline = v.id === baseline.id;
@@ -108,14 +89,14 @@ export default function CompareOverview({
                   : "border-slate-200 bg-white shadow-sm hover:border-slate-400"
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-800">{v.name}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm font-semibold text-slate-800">{v.name}</span>
                 {isBaseline ? (
-                  <span className="rounded-full bg-slate-900 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+                  <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[11px] font-semibold text-white">
                     기준 업체
                   </span>
                 ) : (
-                  <span className="text-[11px] text-slate-300">클릭해서 기준으로</span>
+                  <span className="shrink-0 text-[11px] text-slate-300">클릭해서 기준으로</span>
                 )}
               </div>
               <p className="mt-3 text-2xl font-bold tracking-tight text-slate-900">
@@ -123,7 +104,11 @@ export default function CompareOverview({
               </p>
               <p className="text-xs text-slate-400">견적서 합계</p>
               <div className="mt-2 flex items-center gap-2">
-                <p className={`text-sm font-semibold ${isBest ? "text-emerald-600" : "text-slate-600"}`}>
+                <p
+                  className={`text-sm font-semibold ${
+                    isBest ? "text-emerald-600" : "text-slate-600"
+                  }`}
+                >
                   환산 {formatMan(s.adjustedTotal)}원
                 </p>
                 {isBest && (
@@ -145,14 +130,13 @@ export default function CompareOverview({
         })}
       </div>
 
-      {/* 공정별 비교 */}
+      {/* 공정별 비교 — 업체가 많으면 가로 스크롤 */}
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="min-w-fit">
-          {/* 헤더 */}
           <div className="grid border-b border-slate-200 bg-slate-50 px-5 py-3" style={gridCols}>
             <span className="text-xs font-semibold text-slate-500">공정 · 평균</span>
             {vendors.map((v) => (
-              <span key={v.id} className="text-right text-xs font-semibold text-slate-500">
+              <span key={v.id} className="truncate text-right text-xs font-semibold text-slate-500">
                 {v.name}
                 {v.id === baseline.id && " (기준)"}
               </span>
@@ -162,88 +146,53 @@ export default function CompareOverview({
           {categories.map((c) => {
             const avg = marketAverage(vendors, c.id);
             const baseAmount =
-              categoryStatus(baseline, c.id) === "INCLUDED" ? categoryAmount(baseline, c.id) : null;
-            const isOpen = openCategoryId === c.id;
+              categoryStatus(baseline, c.id) === "INCLUDED"
+                ? categoryAmount(baseline, c.id)
+                : null;
             const anyData = vendors.some((v) => categoryStatus(v, c.id) === "INCLUDED");
             if (c.key === "etc" && !anyData) return null;
 
             return (
-              <div key={c.id} className="border-b border-slate-100 last:border-0">
-                <button
-                  onClick={() => setOpenCategoryId(isOpen ? null : c.id)}
-                  className="grid w-full items-center px-5 py-4 text-left transition hover:bg-slate-50"
-                  style={gridCols}
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      {c.name}
-                      <span className="ml-1 text-xs font-normal text-slate-300">
-                        {isOpen ? "▾" : "▸"}
-                      </span>
-                    </p>
-                    {avg !== null && (
-                      <p className="mt-0.5 text-xs text-slate-400">평균 {formatMan(avg)}원</p>
-                    )}
-                  </div>
-                  {vendors.map((v) => {
-                    const status = categoryStatus(v, c.id);
-                    if (status !== "INCLUDED") {
-                      return (
-                        <div key={v.id} className="text-right">
-                          <StatusPill status={status} />
-                        </div>
-                      );
-                    }
-                    const amount = categoryAmount(v, c.id);
+              <button
+                key={c.id}
+                onClick={() => onOpenCategory(c.id)}
+                className="grid w-full items-center border-b border-slate-100 px-5 py-4 text-left transition last:border-0 hover:bg-slate-50"
+                style={gridCols}
+              >
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {c.name} <span className="text-xs font-normal text-slate-300">›</span>
+                  </p>
+                  {avg !== null && (
+                    <p className="mt-0.5 text-xs text-slate-400">평균 {formatMan(avg)}원</p>
+                  )}
+                </div>
+                {vendors.map((v) => {
+                  const status = categoryStatus(v, c.id);
+                  if (status !== "INCLUDED") {
                     return (
                       <div key={v.id} className="text-right">
-                        <p className="text-base font-bold text-slate-900">{formatMan(amount)}원</p>
-                        {v.id !== baseline.id && baseAmount !== null && (
-                          <DiffPill diff={amount - baseAmount} />
-                        )}
-                        {v.id === baseline.id && vendors.length > 1 && (
-                          <p className="text-[11px] text-slate-300">기준</p>
-                        )}
+                        <StatusPill status={status} />
                       </div>
                     );
-                  })}
-                </button>
-
-                {/* 드릴다운: 세부항목 비교 */}
-                {isOpen && (
-                  <div className="grid gap-4 bg-slate-50/70 px-5 pb-5 pt-1" style={gridCols}>
-                    <div className="text-xs text-slate-400">세부항목</div>
-                    {vendors.map((v) => {
-                      const lines = v.lineItems.filter((li) => li.categoryId === c.id);
-                      return (
-                        <div key={v.id} className="space-y-1">
-                          {lines.length === 0 ? (
-                            <p className="text-right text-xs text-slate-300">—</p>
-                          ) : (
-                            lines.map((li) => (
-                              <div
-                                key={li.id}
-                                className="flex items-baseline justify-between gap-2 rounded-md bg-white px-2.5 py-1.5"
-                              >
-                                <span className="truncate text-xs text-slate-500" title={li.name}>
-                                  {li.name}
-                                </span>
-                                <span className="shrink-0 text-xs font-semibold text-slate-800">
-                                  {formatKRW(li.amount)}
-                                </span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                  }
+                  const amount = categoryAmount(v, c.id);
+                  return (
+                    <div key={v.id} className="text-right">
+                      <p className="text-base font-bold text-slate-900">{formatMan(amount)}원</p>
+                      {v.id !== baseline.id && baseAmount !== null && (
+                        <DiffPill diff={amount - baseAmount} />
+                      )}
+                      {v.id === baseline.id && vendors.length > 1 && (
+                        <p className="text-[11px] text-slate-300">기준</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </button>
             );
           })}
 
-          {/* 합계 */}
           <div className="grid border-t-2 border-slate-200 bg-slate-50 px-5 py-4" style={gridCols}>
             <div>
               <p className="text-sm font-bold text-slate-800">동일 조건 환산 총액</p>
@@ -255,7 +204,11 @@ export default function CompareOverview({
               const baseAdj = summaryOf(baseline.id).adjustedTotal;
               return (
                 <div key={v.id} className="text-right">
-                  <p className={`text-lg font-bold ${isBest ? "text-emerald-600" : "text-slate-900"}`}>
+                  <p
+                    className={`text-lg font-bold ${
+                      isBest ? "text-emerald-600" : "text-slate-900"
+                    }`}
+                  >
                     {formatMan(s.adjustedTotal)}원
                   </p>
                   {v.id !== baseline.id && <DiffPill diff={s.adjustedTotal - baseAdj} />}
@@ -267,10 +220,9 @@ export default function CompareOverview({
       </div>
 
       <p className="text-xs text-slate-400">
-        공정을 클릭하면 세부항목 단위 비교가 열립니다 · 기준 업체 대비{" "}
+        공정을 클릭하면 그 공정만 세부항목 단위로 비교합니다 · 기준 업체 대비{" "}
         <span className="font-medium text-red-500">▲ 더 비쌈</span> /{" "}
-        <span className="font-medium text-blue-500">▼ 더 저렴</span> · 평균은 해당 공정을 포함한
-        업체들의 평균가입니다
+        <span className="font-medium text-blue-500">▼ 더 저렴</span>
       </p>
     </div>
   );

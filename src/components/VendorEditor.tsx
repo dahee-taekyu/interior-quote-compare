@@ -1,11 +1,45 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Category, ItemDraft, ItemStatus, Vendor } from "@/lib/types";
-import { STATUS_LABEL } from "@/lib/types";
+import type { Category, ItemStatus, Vendor } from "@/lib/types";
 import { formatKRW } from "@/lib/calc";
 
-const STATUS_OPTIONS: ItemStatus[] = ["INCLUDED", "EXCLUDED", "BUNDLED", "UNKNOWN"];
+interface Row {
+  name: string;
+  amount: number;
+  isTemplate: boolean;
+}
+
+// 공정별 입력 초안: 기본 세부항목 행 + 저장된 커스텀 행
+function buildDrafts(vendor: Vendor | null, categories: Category[]) {
+  const map = new Map<number, Row[]>();
+  for (const c of categories) {
+    const saved = vendor?.lineItems.filter((li) => li.categoryId === c.id) ?? [];
+    const savedNames = new Set(saved.map((s) => s.name));
+    const rows: Row[] = c.templates.map((t) => ({
+      name: t.name,
+      amount: saved.find((s) => s.name === t.name)?.amount ?? 0,
+      isTemplate: true,
+    }));
+    for (const s of saved) {
+      if (!c.templates.some((t) => t.name === s.name)) {
+        rows.push({ name: s.name, amount: s.amount, isTemplate: false });
+      }
+    }
+    void savedNames;
+    map.set(c.id, rows);
+  }
+  return map;
+}
+
+function buildStatuses(vendor: Vendor | null, categories: Category[]) {
+  const map = new Map<number, ItemStatus>();
+  for (const c of categories) {
+    const item = vendor?.items.find((i) => i.categoryId === c.id);
+    map.set(c.id, (item?.status as ItemStatus) ?? "UNKNOWN");
+  }
+  return map;
+}
 
 export default function VendorEditor({
   categories,
@@ -19,7 +53,8 @@ export default function VendorEditor({
   const [selectedId, setSelectedId] = useState<number | null>(vendors[0]?.id ?? null);
   const [newVendorName, setNewVendorName] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [drafts, setDrafts] = useState<ItemDraft[]>([]);
+  const [drafts, setDrafts] = useState<Map<number, Row[]>>(new Map());
+  const [statuses, setStatuses] = useState<Map<number, ItemStatus>>(new Map());
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
@@ -28,32 +63,53 @@ export default function VendorEditor({
     [vendors, selectedId]
   );
 
-  // 선택 업체가 바뀌면 draft를 서버 데이터로 초기화
   useEffect(() => {
-    if (!selected) {
-      setDrafts([]);
-      return;
-    }
-    setDrafts(
-      categories.map((c) => {
-        const item = selected.items.find((i) => i.categoryId === c.id);
-        return {
-          categoryId: c.id,
-          status: (item?.status ?? "UNKNOWN") as ItemStatus,
-          amount: item?.amount ?? 0,
-          detail: item?.detail ?? "",
-          memo: item?.memo ?? "",
-        };
-      })
-    );
+    setDrafts(buildDrafts(selected, categories));
+    setStatuses(buildStatuses(selected, categories));
     setSavedAt(null);
   }, [selected, categories]);
 
-  const updateDraft = (categoryId: number, patch: Partial<ItemDraft>) => {
-    setDrafts((ds) =>
-      ds.map((d) => (d.categoryId === categoryId ? { ...d, ...patch } : d))
-    );
+  const setRow = (categoryId: number, index: number, patch: Partial<Row>) => {
+    setDrafts((prev) => {
+      const next = new Map(prev);
+      const rows = [...(next.get(categoryId) ?? [])];
+      rows[index] = { ...rows[index], ...patch };
+      next.set(categoryId, rows);
+      return next;
+    });
+    setSavedAt(null);
   };
+
+  const addRow = (categoryId: number) => {
+    setDrafts((prev) => {
+      const next = new Map(prev);
+      next.set(categoryId, [
+        ...(next.get(categoryId) ?? []),
+        { name: "", amount: 0, isTemplate: false },
+      ]);
+      return next;
+    });
+  };
+
+  const removeRow = (categoryId: number, index: number) => {
+    setDrafts((prev) => {
+      const next = new Map(prev);
+      const rows = [...(next.get(categoryId) ?? [])];
+      rows.splice(index, 1);
+      next.set(categoryId, rows);
+      return next;
+    });
+    setSavedAt(null);
+  };
+
+  const setStatus = (categoryId: number, status: ItemStatus) => {
+    setStatuses((prev) => new Map(prev).set(categoryId, status));
+    setSavedAt(null);
+  };
+
+  const subtotal = (categoryId: number) =>
+    (drafts.get(categoryId) ?? []).reduce((a, r) => a + r.amount, 0);
+  const total = categories.reduce((a, c) => a + subtotal(c.id), 0);
 
   const addVendor = async () => {
     const name = newVendorName.trim();
@@ -90,12 +146,12 @@ export default function VendorEditor({
 
   const deleteCategory = async (id: number, name: string) => {
     const affected = vendors.reduce(
-      (n, v) => n + v.items.filter((i) => i.categoryId === id).length,
+      (n, v) => n + v.lineItems.filter((li) => li.categoryId === id).length,
       0
     );
     const warning =
       affected > 0
-        ? `"${name}" 공정을 삭제할까요?\n이 공정에 입력된 견적 항목 ${affected}개도 함께 삭제됩니다.`
+        ? `"${name}" 공정을 삭제할까요?\n이 공정에 입력된 세부항목 ${affected}개도 함께 삭제됩니다.`
         : `"${name}" 공정을 삭제할까요?`;
     if (!confirm(warning)) return;
     await fetch(`/api/categories/${id}`, { method: "DELETE" });
@@ -115,23 +171,39 @@ export default function VendorEditor({
   const save = async () => {
     if (!selected) return;
     setSaving(true);
+    const lineItems = categories.flatMap((c) =>
+      (drafts.get(c.id) ?? [])
+        .filter((r) => r.name.trim() && r.amount > 0)
+        .map((r) => ({ categoryId: c.id, name: r.name.trim(), amount: r.amount }))
+    );
+    const statusItems = categories
+      .filter((c) => subtotal(c.id) === 0)
+      .map((c) => ({ categoryId: c.id, status: statuses.get(c.id) ?? "UNKNOWN" }));
+
+    await fetch(`/api/vendors/${selected.id}/line-items`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: lineItems }),
+    });
     await fetch(`/api/vendors/${selected.id}/items`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: drafts }),
+      body: JSON.stringify({ items: statusItems }),
     });
     await onChanged();
     setSaving(false);
     setSavedAt(Date.now());
   };
 
-  const draftTotal = drafts
-    .filter((d) => d.status === "INCLUDED")
-    .reduce((a, d) => a + d.amount, 0);
+  const STATUS_CHIPS: { value: ItemStatus; label: string }[] = [
+    { value: "UNKNOWN", label: "확인 필요" },
+    { value: "EXCLUDED", label: "미포함" },
+    { value: "BUNDLED", label: "다른 공정에 묶임" },
+  ];
 
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-      {/* 업체 목록 */}
+      {/* 사이드바 */}
       <aside className="space-y-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-slate-700">업체</h2>
@@ -212,79 +284,109 @@ export default function VendorEditor({
         </div>
       </aside>
 
-      {/* 견적 입력 폼 */}
+      {/* 견적 입력 */}
       {selected ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <section className="space-y-4">
+          <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
             <div>
-              <h2 className="text-lg font-semibold">{selected.name} 견적</h2>
-              <label className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                <input
-                  type="checkbox"
-                  checked={selected.vatIncluded}
-                  onChange={toggleVat}
-                />
+              <h2 className="text-lg font-semibold">{selected.name}</h2>
+              <label className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                <input type="checkbox" checked={selected.vatIncluded} onChange={toggleVat} />
                 부가세 포함 견적
               </label>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-500">
-                포함 합계 <b className="text-slate-900">{formatKRW(draftTotal)}</b>원
-              </span>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-xs text-slate-400">입력 합계</p>
+                <p className="text-xl font-bold text-slate-900">{formatKRW(total)}원</p>
+              </div>
               <button
                 onClick={save}
                 disabled={saving}
-                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
               >
                 {saving ? "저장 중…" : "저장"}
               </button>
-              {savedAt && <span className="text-xs text-emerald-600">저장됨</span>}
+              {savedAt && <span className="text-xs font-medium text-emerald-600">저장됨 ✓</span>}
             </div>
           </div>
 
-          <div className="space-y-2">
-            {categories.map((c) => {
-              const d = drafts.find((x) => x.categoryId === c.id);
-              if (!d) return null;
-              return (
-                <div
-                  key={c.id}
-                  className="grid grid-cols-1 items-center gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3 md:grid-cols-[180px_150px_130px_1fr]"
-                >
-                  <span className="text-sm font-medium text-slate-700">{c.name}</span>
-                  <select
-                    value={d.status}
-                    onChange={(e) =>
-                      updateDraft(c.id, { status: e.target.value as ItemStatus })
-                    }
-                    className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-                  >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {STATUS_LABEL[s]}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    min={0}
-                    step={10000}
-                    value={d.amount || ""}
-                    onChange={(e) => updateDraft(c.id, { amount: Number(e.target.value) })}
-                    disabled={d.status !== "INCLUDED"}
-                    placeholder="금액(원)"
-                    className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-right text-sm focus:border-slate-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                  />
-                  <input
-                    value={d.detail}
-                    onChange={(e) => updateDraft(c.id, { detail: e.target.value })}
-                    placeholder="포함 내역·자재 스펙 (예: LX지인 마루, 국산 도기)"
-                    className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-                  />
+          {categories.map((c) => {
+            const rows = drafts.get(c.id) ?? [];
+            const sub = subtotal(c.id);
+            const status = statuses.get(c.id) ?? "UNKNOWN";
+            return (
+              <div key={c.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-slate-800">{c.name}</h3>
+                  {sub > 0 ? (
+                    <span className="text-base font-bold text-slate-900">{formatKRW(sub)}원</span>
+                  ) : (
+                    <div className="flex gap-1">
+                      {STATUS_CHIPS.map((chip) => (
+                        <button
+                          key={chip.value}
+                          onClick={() => setStatus(c.id, chip.value)}
+                          className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                            status === chip.value
+                              ? chip.value === "EXCLUDED"
+                                ? "bg-red-100 text-red-700"
+                                : chip.value === "BUNDLED"
+                                  ? "bg-slate-200 text-slate-700"
+                                  : "bg-amber-100 text-amber-700"
+                              : "bg-slate-100 text-slate-400 hover:text-slate-600"
+                          }`}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              );
-            })}
-          </div>
+
+                <div className="space-y-1.5">
+                  {rows.map((row, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      {row.isTemplate ? (
+                        <span className="w-44 shrink-0 text-sm text-slate-600">{row.name}</span>
+                      ) : (
+                        <input
+                          value={row.name}
+                          onChange={(e) => setRow(c.id, i, { name: e.target.value })}
+                          placeholder="세부항목 이름"
+                          className="w-44 shrink-0 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+                        />
+                      )}
+                      <input
+                        type="number"
+                        min={0}
+                        step={10000}
+                        value={row.amount || ""}
+                        onChange={(e) => setRow(c.id, i, { amount: Number(e.target.value) })}
+                        placeholder="금액(원)"
+                        className="w-36 rounded-md border border-slate-300 px-2.5 py-1.5 text-right text-sm focus:border-slate-500 focus:outline-none"
+                      />
+                      {!row.isTemplate && (
+                        <button
+                          onClick={() => removeRow(c.id, i)}
+                          className="text-slate-300 transition hover:text-red-500"
+                          title="행 삭제"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => addRow(c.id)}
+                  className="mt-2 text-sm font-medium text-slate-400 transition hover:text-slate-700"
+                >
+                  + 세부항목 추가
+                </button>
+              </div>
+            );
+          })}
         </section>
       ) : (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">

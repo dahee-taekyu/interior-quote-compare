@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Category, Vendor } from "@/lib/types";
-import ComparisonMatrix from "./ComparisonMatrix";
+import CompareOverview from "./CompareOverview";
 import VendorEditor from "./VendorEditor";
 import CostChart from "./CostChart";
 import UploadParse from "./UploadParse";
@@ -87,7 +87,7 @@ export default function App() {
       {loading ? (
         <p className="text-sm text-slate-500">불러오는 중…</p>
       ) : tab === "matrix" ? (
-        <ComparisonMatrix categories={categories} vendors={vendors} />
+        <CompareOverview categories={categories} vendors={vendors} />
       ) : tab === "paste" ? (
         <PasteRegister categories={categories} onChanged={reload} />
       ) : tab === "upload" ? (

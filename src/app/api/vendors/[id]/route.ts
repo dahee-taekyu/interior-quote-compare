@@ -14,7 +14,7 @@ export async function PATCH(req: Request, { params }: Params) {
       ...(body.memo !== undefined && { memo: body.memo || null }),
       ...(body.vatIncluded !== undefined && { vatIncluded: !!body.vatIncluded }),
     },
-    include: { items: true },
+    include: { items: true, lineItems: true },
   });
   return NextResponse.json(vendor);
 }

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   const vendors = await prisma.vendor.findMany({
     orderBy: { createdAt: "asc" },
-    include: { items: true },
+    include: { items: true, lineItems: true },
   });
   return NextResponse.json(vendors);
 }
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       memo: body.memo ? String(body.memo) : null,
       vatIncluded: body.vatIncluded ?? true,
     },
-    include: { items: true },
+    include: { items: true, lineItems: true },
   });
   return NextResponse.json(vendor, { status: 201 });
 }

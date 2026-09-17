@@ -71,30 +71,18 @@ export default function ReviewPanel({
       });
       const vendor = await vRes.json();
 
-      // 같은 공정에 매핑된 항목들을 합산해서 저장
-      const byCategory = new Map<string, { amount: number; details: string[] }>();
-      for (const it of items) {
-        if (it.categoryKey === EXCLUDE) continue;
-        const entry = byCategory.get(it.categoryKey) ?? { amount: 0, details: [] };
-        entry.amount += it.amount;
-        entry.details.push(it.detail ? `${it.rawText} (${it.detail})` : it.rawText);
-        byCategory.set(it.categoryKey, entry);
-      }
+      // 각 파싱 항목을 세부항목(LineItem)으로 그대로 저장 — 원문 보존
+      const idOf = new Map(categories.map((c) => [c.key, c.id]));
+      const payload = items
+        .filter((it) => it.categoryKey !== EXCLUDE && idOf.has(it.categoryKey))
+        .map((it) => ({
+          categoryId: idOf.get(it.categoryKey)!,
+          name: it.detail ? `${it.rawText} (${it.detail})` : it.rawText,
+          amount: it.amount,
+          memo: "파싱으로 등록",
+        }));
 
-      const payload = categories
-        .filter((c) => byCategory.has(c.key))
-        .map((c) => {
-          const entry = byCategory.get(c.key)!;
-          return {
-            categoryId: c.id,
-            status: "INCLUDED",
-            amount: entry.amount,
-            detail: entry.details.join(" / "),
-            memo: "파싱으로 등록",
-          };
-        });
-
-      await fetch(`/api/vendors/${vendor.id}/items`, {
+      await fetch(`/api/vendors/${vendor.id}/line-items`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: payload }),

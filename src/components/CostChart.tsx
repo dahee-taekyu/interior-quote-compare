@@ -36,14 +36,14 @@ export default function CostChart({
 }) {
   const { data, seriesNames } = useMemo(() => {
     // 전체 비중 기준으로 공정 정렬 → 상위 7개 + 나머지는 '기타'로 접기
+    const amountOf = (v: Vendor, categoryId: number) =>
+      v.lineItems
+        .filter((li) => li.categoryId === categoryId)
+        .reduce((a, li) => a + li.amount, 0);
+
     const totals = categories.map((c) => ({
       c,
-      total: vendors.reduce((sum, v) => {
-        const item = v.items.find(
-          (i) => i.categoryId === c.id && i.status === "INCLUDED"
-        );
-        return sum + (item?.amount ?? 0);
-      }, 0),
+      total: vendors.reduce((sum, v) => sum + amountOf(v, c.id), 0),
     }));
     const active = totals.filter((t) => t.total > 0);
     active.sort((a, b) => b.total - a.total);
@@ -53,18 +53,10 @@ export default function CostChart({
     const rows = vendors.map((v) => {
       const row: Record<string, string | number> = { name: v.name };
       for (const { c } of top) {
-        const item = v.items.find(
-          (i) => i.categoryId === c.id && i.status === "INCLUDED"
-        );
-        row[c.name] = item?.amount ?? 0;
+        row[c.name] = amountOf(v, c.id);
       }
       if (rest.length > 0) {
-        row["기타"] = rest.reduce((sum, { c }) => {
-          const item = v.items.find(
-            (i) => i.categoryId === c.id && i.status === "INCLUDED"
-          );
-          return sum + (item?.amount ?? 0);
-        }, 0);
+        row["기타"] = rest.reduce((sum, { c }) => sum + amountOf(v, c.id), 0);
       }
       return row;
     });

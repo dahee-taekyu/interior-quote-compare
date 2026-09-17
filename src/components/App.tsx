@@ -13,7 +13,7 @@ type Tab = "matrix" | "paste" | "upload" | "edit" | "chart";
 export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [tab, setTab] = useState<Tab>("matrix");
+  const [tab, setTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
@@ -22,7 +22,10 @@ export default function App() {
       fetch("/api/vendors"),
     ]);
     setCategories(await cRes.json());
-    setVendors(await vRes.json());
+    const vendorList: Vendor[] = await vRes.json();
+    setVendors(vendorList);
+    // 첫 방문(데이터 없음)은 입력부터, 데이터가 있으면 비교 결과부터
+    setTab((prev) => prev ?? (vendorList.length === 0 ? "edit" : "matrix"));
     setLoading(false);
   }, []);
 
@@ -30,12 +33,22 @@ export default function App() {
     reload();
   }, [reload]);
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "matrix", label: "비교 매트릭스" },
-    { key: "paste", label: "붙여넣기 등록" },
-    { key: "edit", label: "견적 입력" },
-    { key: "upload", label: "AI 파싱" },
-    { key: "chart", label: "비용 구성 차트" },
+  const tabGroups: { title: string; tabs: { key: Tab; label: string }[] }[] = [
+    {
+      title: "등록",
+      tabs: [
+        { key: "edit", label: "견적 입력" },
+        { key: "paste", label: "붙여넣기" },
+        { key: "upload", label: "AI 파싱" },
+      ],
+    },
+    {
+      title: "비교",
+      tabs: [
+        { key: "matrix", label: "비교 매트릭스" },
+        { key: "chart", label: "비용 구성 차트" },
+      ],
+    },
   ];
 
   return (
@@ -48,19 +61,26 @@ export default function App() {
         </p>
       </header>
 
-      <nav className="mb-6 flex gap-1 rounded-lg bg-slate-200/70 p-1 w-fit">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
-              tab === t.key
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            {t.label}
-          </button>
+      <nav className="mb-6 flex flex-wrap items-center gap-4">
+        {tabGroups.map((group) => (
+          <div key={group.title} className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-400">{group.title}</span>
+            <div className="flex gap-1 rounded-lg bg-slate-200/70 p-1">
+              {group.tabs.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+                    tab === t.key
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 

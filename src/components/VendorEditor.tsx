@@ -257,7 +257,11 @@ export default function VendorEditor({
         </section>
       ) : (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
-          왼쪽에서 업체를 추가하거나 선택하세요.
+          <p>왼쪽에서 업체를 추가하고 공정별 견적을 입력하세요.</p>
+          <p className="mt-2 text-xs text-slate-400">
+            직접 입력이 번거로우면 <b>붙여넣기</b>(견적서 텍스트 복사, 무료)나{" "}
+            <b>AI 파싱</b>(파일 업로드, API 키 필요)으로 자동으로 채울 수도 있습니다.
+          </p>
         </div>
       )}
     </div>

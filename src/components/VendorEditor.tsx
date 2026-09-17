@@ -98,11 +98,15 @@ export default function VendorEditor({
     [vendors, selectedId]
   );
 
+  // 업체를 "전환"할 때만 초안을 서버 데이터로 재구성한다.
+  // selected 객체 자체를 의존성으로 쓰면 메타 저장 등으로 목록이 리로드될 때마다
+  // 작성 중인 세부항목 수정분이 서버 값으로 되돌아간다.
   useEffect(() => {
     setDrafts(buildDrafts(selected, categories));
     setStatuses(buildStatuses(selected, categories));
     setSavedAt(null);
-  }, [selected, categories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, categories]);
 
   const setRow = (categoryId: number, index: number, patch: Partial<Row>) => {
     setDrafts((prev) => {
@@ -206,6 +210,24 @@ export default function VendorEditor({
 
   const patchVendor = async (patch: Record<string, unknown>) => {
     if (!selected) return;
+    // 값이 실제로 바뀐 경우에만 저장 (blur마다 불필요한 리로드 방지)
+    const current: Record<string, unknown> = {
+      pyeong: selected.pyeong,
+      overheadPercent: selected.overheadPercent,
+      overheadLabel: selected.overheadLabel,
+      adjustment: selected.adjustment,
+      periodDays: selected.periodDays,
+      vatIncluded: selected.vatIncluded,
+    };
+    const changed = Object.entries(patch).some(([k, v]) => {
+      const before = current[k];
+      if (typeof before === "number" || before === null || before === undefined) {
+        const num = v === "" || v === null || v === undefined ? null : Number(v);
+        return (before ?? null) !== (num ?? null) && !(before === 0 && num === null);
+      }
+      return before !== v;
+    });
+    if (!changed) return;
     await fetch(`/api/vendors/${selected.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -373,7 +395,11 @@ export default function VendorEditor({
                 {savedAt && <span className="text-xs font-medium text-emerald-600">저장됨 ✓</span>}
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-sm text-slate-600">
+            {/* key로 업체 전환 시 비제어 입력(defaultValue)을 새 값으로 리마운트 */}
+            <div
+              key={selected.id}
+              className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-sm text-slate-600"
+            >
               <label className="flex items-center gap-1.5">
                 평형
                 <input

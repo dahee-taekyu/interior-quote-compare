@@ -134,24 +134,83 @@ const MOBIL_LINES: Line[] = [
 ];
 
 // ───── 박목수의 열린 견적서 (상계은빛2단지 25평형/81㎡) ─────
-// 상세내역 이미지가 저해상도라 공사별 합계만 등록 (합계는 요약표 기준으로 정확)
+// 상세내역 이미지에서 확실히 읽힌 항목은 단가·수량까지 등록.
+// 판독이 안 되는 나머지는 "잔여 항목"으로 묶어 공사별 합계를 원본과 일치시킴.
+const REMAIN = "이미지 판독 한계 — 원본 대조 필요";
 const PARK_LINES: Line[] = [
-  { cat: "extension", name: "확장공사 일괄", unit: "식", qty: 1, amount: 3090000, memo: "철거·단열재·방화문 포함" },
-  { cat: "windows", name: "창호공사 일괄", spec: "KCC창호 9,500,000 + 터닝도어", unit: "식", qty: 1, amount: 10300000 },
-  { cat: "door", name: "도어공사 일괄", spec: "중문(스윙) 1,200,000 + ABS도어 등", unit: "식", qty: 1, amount: 3295000 },
-  { cat: "bathroom", name: "도기공사 일괄", spec: "세면도기·양변기 등", unit: "식", qty: 1, amount: 770000 },
-  { cat: "tile", name: "타일공사 일괄", spec: "욕실 600각·현관·주방·발코니, 인건비 포함", unit: "식", qty: 1, amount: 4276000 },
-  { cat: "bathroom", name: "수전공사 일괄", spec: "수전·액세서리·SMC천장 등", unit: "식", qty: 1, amount: 1157000 },
-  { cat: "furniture", name: "가구공사 일괄", spec: "싱크대·신발장·냉장고장 등", unit: "식", qty: 1, amount: 6715000 },
-  { cat: "electric", name: "전기공사 일괄", unit: "식", qty: 1, amount: 1335000 },
-  { cat: "electric", name: "조명공사 일괄", spec: "매입등(6W LED)×20 등", unit: "식", qty: 1, amount: 812000 },
-  { cat: "film", name: "도장공사 일괄", spec: "친환경 수성페인트", unit: "식", qty: 1, amount: 430000 },
-  { cat: "film", name: "시트공사 일괄", unit: "식", qty: 1, amount: 210000 },
-  { cat: "flooring", name: "바닥공사 일괄", spec: "강마루 150,000×21평 + 걸레받이", unit: "식", qty: 1, amount: 3230000 },
-  { cat: "wallpaper", name: "도배공사 일괄", spec: "실크벽지(LX·신한) 11,000×65롤 + 인건비", unit: "식", qty: 1, amount: 2449500 },
-  { cat: "carpentry", name: "목공사 일괄", spec: "문선·몰딩(영림·예림)·석고보드 등", unit: "식", qty: 1, amount: 1916500 },
-  { cat: "demolition", name: "철거공사 일괄", spec: "욕실·방수 1,2차 포함", unit: "식", qty: 1, amount: 3290000 },
-  { cat: "etc", name: "기타공사 일괄", spec: "입주청소·보양 등", unit: "식", qty: 1, amount: 1950000, memo: "이미지 판독 불확실 — 공사비 합계(45,226,000) 기준 역산, 원본 대조 필요" },
+  // 100 확장공사 3,090,000
+  { cat: "extension", name: "확장부 철거", unit: "식", amount: 600000 },
+  { cat: "extension", name: "단열재", spec: "아이소핑크", unit: "식", amount: 350000 },
+  { cat: "extension", name: "방화문 설치", unit: "식", amount: 280000 },
+  { cat: "extension", name: "확장 잔여 항목", amount: 1860000, memo: REMAIN },
+  // 200 창호공사 10,300,000
+  { cat: "windows", name: "KCC 창호", unit: "식", qty: 1, unitPrice: 9500000, amount: 9500000 },
+  { cat: "windows", name: "터닝도어", unit: "식", amount: 800000 },
+  // 300 도어공사 3,295,000
+  { cat: "door", name: "중문(스윙도어)", unit: "식", qty: 1, unitPrice: 1200000, amount: 1200000 },
+  { cat: "door", name: "도어 잔여 항목", spec: "ABS도어(900×2100)·문틀·부속·인건비", amount: 2095000, memo: REMAIN },
+  // 400 도기공사 770,000
+  { cat: "bathroom", name: "세면도기·변기", unit: "식", amount: 190000 },
+  { cat: "bathroom", name: "양변기", unit: "식", amount: 260000 },
+  { cat: "bathroom", name: "세면대 부속", spec: "자동폭업 등", unit: "식", amount: 40000 },
+  { cat: "bathroom", name: "도기 부자재", unit: "식", amount: 30000 },
+  { cat: "bathroom", name: "도기 인건비", unit: "품", amount: 250000 },
+  // 600 수전공사 1,157,000
+  { cat: "bathroom", name: "세면수전", spec: "무광", unit: "식", amount: 65000 },
+  { cat: "bathroom", name: "욕조수전", spec: "무광", unit: "식", amount: 80000 },
+  { cat: "bathroom", name: "슬라이드바", spec: "무광", unit: "식", amount: 47000 },
+  { cat: "bathroom", name: "해바라기 샤워기", spec: "1200×900", unit: "식", amount: 180000 },
+  { cat: "bathroom", name: "욕실 액세서리 5종", spec: "무광", unit: "식", amount: 63000 },
+  { cat: "bathroom", name: "SMC 천장", spec: "솔·평판", unit: "식", amount: 270000 },
+  { cat: "bathroom", name: "수전 인건비", unit: "품", amount: 250000 },
+  { cat: "bathroom", name: "수전 잔여 항목", spec: "LED 매립등·부자재 등", amount: 202000, memo: REMAIN },
+  // 500 타일공사 4,276,000
+  { cat: "tile", name: "욕실 벽타일", spec: "600×600", unit: "박스", amount: 720000 },
+  { cat: "tile", name: "욕실 바닥타일", spec: "600×600", unit: "박스", amount: 135000 },
+  { cat: "tile", name: "주방타일", spec: "600×600", unit: "박스", amount: 135000 },
+  { cat: "tile", name: "현관타일", spec: "600×600", unit: "박스", amount: 90000 },
+  { cat: "tile", name: "발코니타일", spec: "300×300", unit: "박스", amount: 90000 },
+  { cat: "tile", name: "타일 부자재", spec: "드라이픽스·본드 등", unit: "식", amount: 400000 },
+  { cat: "tile", name: "타일 인건비(기술자)", unit: "품", amount: 1200000 },
+  { cat: "tile", name: "타일 보조 인건비", unit: "품", amount: 500000 },
+  { cat: "tile", name: "타일 메지 인건비", unit: "품", amount: 250000 },
+  { cat: "tile", name: "타일 잔여 항목", spec: "조적·몰탈·유가·줄눈 등", amount: 756000, memo: REMAIN },
+  // 700 가구공사 6,715,000 (항목별 금액 판독 불가)
+  { cat: "furniture", name: "가구공사 일괄", spec: "싱크대(LX)·신발장·냉장고장·인덕션 등", unit: "식", qty: 1, amount: 6715000, memo: REMAIN },
+  // 800 전기공사 1,335,000 (항목별 금액 판독 불가)
+  { cat: "electric", name: "전기공사 일괄", spec: "배선·콘센트/스위치·분전함 등", unit: "식", qty: 1, amount: 1335000, memo: REMAIN },
+  // 900 조명공사 812,000
+  { cat: "electric", name: "매입등", spec: "6W LED", unit: "개", qty: 20, unitPrice: 10000, amount: 200000 },
+  { cat: "electric", name: "조명 인건비", unit: "품", amount: 300000 },
+  { cat: "electric", name: "조명 잔여 항목", spec: "방등·주방등·현관센서등·욕실등", amount: 312000, memo: REMAIN },
+  // 1000 도장공사 430,000
+  { cat: "film", name: "친환경 수성페인트", unit: "식", amount: 70000 },
+  { cat: "film", name: "도장 부자재", spec: "실리콘·카바링·사포·마카", unit: "식", amount: 10000 },
+  { cat: "film", name: "도장 인건비", unit: "품", amount: 350000 },
+  // 1100 시트공사 210,000
+  { cat: "film", name: "필름 자재", unit: "M", amount: 50000 },
+  { cat: "film", name: "시트 부자재", spec: "퍼티·프라이머", unit: "식", amount: 10000 },
+  { cat: "film", name: "시트 인건비", unit: "품", amount: 150000, memo: "판독 추정치 — 원본 대조 필요" },
+  // 1200 바닥공사 3,230,000
+  { cat: "flooring", name: "강마루", unit: "평", qty: 21, unitPrice: 150000, amount: 3150000 },
+  { cat: "flooring", name: "걸레받이", unit: "식", amount: 80000 },
+  // 1300 도배공사 2,449,500
+  { cat: "wallpaper", name: "실크벽지", spec: "LX·헤라력·신한", unit: "롤", qty: 65, unitPrice: 11000, amount: 715000 },
+  { cat: "wallpaper", name: "도배 부자재", spec: "본드·아교·풀 등", unit: "롤", qty: 65, unitPrice: 4300, amount: 279500 },
+  { cat: "wallpaper", name: "도배 인건비", spec: "벽·천장", unit: "품", amount: 1350000 },
+  { cat: "wallpaper", name: "도배 잔여 항목", amount: 105000, memo: REMAIN },
+  // 1400 목공사 1,916,500
+  { cat: "carpentry", name: "문선몰딩", spec: "영림·예림", unit: "개", qty: 10, unitPrice: 4500, amount: 45000 },
+  { cat: "carpentry", name: "천장몰딩", unit: "개", qty: 25, unitPrice: 4500, amount: 112500 },
+  { cat: "carpentry", name: "걸레받이(목공)", unit: "개", qty: 22, unitPrice: 4500, amount: 99000 },
+  { cat: "carpentry", name: "석고보드", unit: "장", qty: 18, unitPrice: 13000, amount: 234000 },
+  { cat: "carpentry", name: "목공 인건비", unit: "품", amount: 700000 },
+  { cat: "carpentry", name: "목공 잔여 항목", spec: "아이소핑크·다루끼·부자재 등", amount: 726000, memo: REMAIN },
+  // 1500 철거공사 3,290,000
+  { cat: "demolition", name: "방수 1·2차", unit: "식", amount: 200000 },
+  { cat: "demolition", name: "철거 잔여 항목", spec: "욕실·바닥·가구 철거, 폐기물 등", amount: 3090000, memo: REMAIN },
+  // 1600 기타공사 1,950,000 (항목별 금액 판독 불가)
+  { cat: "etc", name: "기타공사 일괄", spec: "입주청소·보양·공과잡비 등", unit: "식", qty: 1, amount: 1950000, memo: "공사비 합계(45,226,000) 기준 역산 — 원본 대조 필요" },
 ];
 
 async function main() {

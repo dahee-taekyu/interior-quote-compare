@@ -88,6 +88,20 @@ export default function VendorEditor({
     await onChanged();
   };
 
+  const deleteCategory = async (id: number, name: string) => {
+    const affected = vendors.reduce(
+      (n, v) => n + v.items.filter((i) => i.categoryId === id).length,
+      0
+    );
+    const warning =
+      affected > 0
+        ? `"${name}" 공정을 삭제할까요?\n이 공정에 입력된 견적 항목 ${affected}개도 함께 삭제됩니다.`
+        : `"${name}" 공정을 삭제할까요?`;
+    if (!confirm(warning)) return;
+    await fetch(`/api/categories/${id}`, { method: "DELETE" });
+    await onChanged();
+  };
+
   const toggleVat = async () => {
     if (!selected) return;
     await fetch(`/api/vendors/${selected.id}`, {
@@ -162,7 +176,24 @@ export default function VendorEditor({
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-slate-700">공정 추가</h2>
+          <h2 className="mb-3 text-sm font-semibold text-slate-700">공정 관리</h2>
+          <ul className="mb-3 space-y-0.5">
+            {categories.map((c) => (
+              <li
+                key={c.id}
+                className="group flex items-center justify-between rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                <span>{c.name}</span>
+                <button
+                  onClick={() => deleteCategory(c.id, c.name)}
+                  className="rounded p-0.5 text-slate-300 opacity-0 transition hover:text-red-500 group-hover:opacity-100"
+                  title="공정 삭제"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
           <div className="flex gap-1.5">
             <input
               value={newCategoryName}

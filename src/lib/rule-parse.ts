@@ -115,7 +115,7 @@ export function ruleParse(text: string): RuleParsedQuote {
       confidence: matched ? "medium" : "low",
       note: matched
         ? `"${matched.keyword}" 키워드로 자동 분류 — 확인해주세요`
-        : "자동 분류하지 못했습니다. 공정을 직접 선택해주세요",
+        : "자동 분류하지 못해 '기타'로 두었습니다 — 필요하면 공정을 바꿔주세요",
     });
   }
 

@@ -15,6 +15,7 @@ const CATEGORIES = [
   { key: "flooring", name: "바닥(마루·장판)" },
   { key: "cleaning", name: "입주청소·보양" },
   { key: "management", name: "감리·현장관리비" },
+  { key: "etc", name: "기타" },
 ];
 
 async function main() {

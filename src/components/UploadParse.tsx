@@ -38,14 +38,22 @@ export default function UploadParse({
         vendorName: parsed.vendorName ?? "",
         vatIncluded: parsed.vatIncluded ?? true,
         totalOnDocument: parsed.totalOnDocument,
-        items: parsed.items.map((it) => ({
-          rawText: it.rawText,
-          detail: it.detail ?? "",
-          amount: it.amount ?? 0,
-          categoryKey: it.categoryKey ?? EXCLUDE,
-          confidence: it.confidence,
-          note: it.note,
-        })),
+        items: parsed.items.map((it) => {
+          const validKeys = new Set(categories.map((c) => c.key));
+          return {
+            rawText: it.rawText,
+            detail: it.detail ?? "",
+            amount: it.amount ?? 0,
+            categoryKey:
+              it.categoryKey && validKeys.has(it.categoryKey)
+                ? it.categoryKey
+                : validKeys.has("etc")
+                  ? "etc"
+                  : EXCLUDE,
+            confidence: it.confidence,
+            note: it.note,
+          };
+        }),
       });
     } catch {
       setError("네트워크 오류가 발생했습니다.");

@@ -68,7 +68,11 @@ export default function PasteRegister({
               detail: it.detail ?? "",
               amount: typeof it.amount === "number" ? it.amount : 0,
               categoryKey:
-                it.categoryKey && validKeys.has(it.categoryKey) ? it.categoryKey : EXCLUDE,
+                it.categoryKey && validKeys.has(it.categoryKey)
+                  ? it.categoryKey
+                  : validKeys.has("etc")
+                    ? "etc"
+                    : EXCLUDE,
               confidence: ["high", "medium", "low"].includes(it.confidence ?? "")
                 ? (it.confidence as "high" | "medium" | "low")
                 : "medium",
@@ -101,9 +105,12 @@ export default function PasteRegister({
         rawText: it.rawText,
         detail: it.detail ?? "",
         amount: it.amount ?? 0,
-        categoryKey: it.categoryKey ?? EXCLUDE,
+        categoryKey: it.categoryKey ?? (validKeys.has("etc") ? "etc" : EXCLUDE),
         confidence: it.confidence,
-        note: it.note,
+        note:
+          it.categoryKey === null
+            ? "표준 공정에 없어 '기타'로 분류했습니다 — 확인해주세요"
+            : it.note,
       })),
     });
   };

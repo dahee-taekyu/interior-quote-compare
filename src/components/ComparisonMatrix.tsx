@@ -81,6 +81,8 @@ export default function ComparisonMatrix({
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
                             타 항목 포함
                           </span>
+                        ) : c.key === "etc" && !item ? (
+                          <span className="text-xs text-slate-300">—</span>
                         ) : (
                           <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-600">
                             확인 필요

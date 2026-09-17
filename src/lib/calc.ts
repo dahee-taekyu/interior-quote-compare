@@ -49,8 +49,11 @@ export function summarize(vendors: Vendor[], categories: Category[]): VendorSumm
       } else {
         if (status === "EXCLUDED") missingCount += 1;
         else unknownCount += 1;
-        const avg = marketAverage(vendors, c.id, v.id);
-        if (avg !== null) fills.set(c.id, avg);
+        // '기타'는 업체마다 내용물이 달라 타 업체 평균으로 보정하면 왜곡됨
+        if (c.key !== "etc") {
+          const avg = marketAverage(vendors, c.id, v.id);
+          if (avg !== null) fills.set(c.id, avg);
+        }
       }
     }
 

@@ -74,14 +74,14 @@ export default function CompareOverview({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">전체 비교</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            기준 업체가 맨 앞에, 나머지는 가나다 순으로 표시됩니다
-          </p>
+      <header>
+        <h2 className="text-xl font-bold text-slate-900">전체 비교</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          기준 업체가 맨 앞에, 나머지는 가나다 순으로 표시됩니다
+        </p>
+        <div className="mt-4">
+          <BaselinePicker vendors={vendors} baseline={baseline} onChoose={chooseBaseline} />
         </div>
-        <BaselinePicker vendors={vendors} baseline={baseline} onChoose={chooseBaseline} />
       </header>
 
       {/* 업체 요약 카드 — 업체가 많아지면 자동 줄바꿈 */}

@@ -6,8 +6,9 @@ import ComparisonMatrix from "./ComparisonMatrix";
 import VendorEditor from "./VendorEditor";
 import CostChart from "./CostChart";
 import UploadParse from "./UploadParse";
+import PasteRegister from "./PasteRegister";
 
-type Tab = "matrix" | "upload" | "edit" | "chart";
+type Tab = "matrix" | "paste" | "upload" | "edit" | "chart";
 
 export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -31,8 +32,9 @@ export default function App() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "matrix", label: "비교 매트릭스" },
-    { key: "upload", label: "견적서 업로드" },
+    { key: "paste", label: "붙여넣기 등록" },
     { key: "edit", label: "견적 입력" },
+    { key: "upload", label: "AI 파싱" },
     { key: "chart", label: "비용 구성 차트" },
   ];
 
@@ -66,6 +68,8 @@ export default function App() {
         <p className="text-sm text-slate-500">불러오는 중…</p>
       ) : tab === "matrix" ? (
         <ComparisonMatrix categories={categories} vendors={vendors} />
+      ) : tab === "paste" ? (
+        <PasteRegister categories={categories} onChanged={reload} />
       ) : tab === "upload" ? (
         <UploadParse categories={categories} onChanged={reload} />
       ) : tab === "edit" ? (

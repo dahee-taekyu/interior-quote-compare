@@ -5,7 +5,25 @@ import type { Category } from "@/lib/types";
 import { ruleParse } from "@/lib/rule-parse";
 import ReviewPanel, { EXCLUDE, type ReviewData } from "./ReviewPanel";
 
-const JSON_EXAMPLE = `{
+/** 사용자가 자기 AI(ChatGPT·Claude·Gemini 등)에 견적서와 함께 붙여넣을 프롬프트 */
+function buildAiPrompt(categories: Category[]): string {
+  const categoryList = categories.map((c) => `- ${c.key}: ${c.name}`).join("\n");
+  return `당신은 한국 인테리어 견적서 분석 전문가입니다. 함께 제공하는 견적서(파일 또는 텍스트)를 읽고 모든 항목을 추출한 뒤, 아래 표준 공정 체계에 매핑해서 JSON으로만 답하세요.
+
+표준 공정 목록 (categoryKey: 이름):
+${categoryList}
+
+규칙:
+- 견적서의 모든 금액 항목을 빠짐없이 추출하고, rawText에는 견적서에 적힌 표현을 그대로 보존합니다.
+- 시공사마다 공정 표현이 다릅니다 (예: 샤시/샷시/창호 → windows, 도장/페인트 → wallpaper, UBR/욕실공사 → bathroom). 의미 기준으로 매핑하세요.
+- 표준 공정에 명확히 해당하지 않는 시공 항목(붙박이장, 에어컨 등)은 "etc"로, 견적 항목이 아닌 것(할인·조정액 등)은 categoryKey를 null로 둡니다.
+- 표현이 모호하거나 여러 공정에 걸치면 confidence를 "low"로 하고 note에 확인할 점을 적습니다.
+- 금액은 원 단위 숫자로 변환합니다 ("1,200,000" → 1200000, "120만" → 1200000).
+- 부가세 포함 여부(vatIncluded)와 견적서에 적힌 총액(totalOnDocument)도 찾고, 명시가 없으면 null.
+- 소계·합계 줄은 items에 넣지 않습니다.
+
+출력은 아래 형식의 JSON 하나만, 코드블록이나 설명 없이:
+{
   "vendorName": "OO인테리어",
   "vatIncluded": true,
   "totalOnDocument": 42000000,
@@ -20,6 +38,7 @@ const JSON_EXAMPLE = `{
     }
   ]
 }`;
+}
 
 /** 견적서 텍스트 붙여넣기(규칙 기반, 무료) 또는 CLI AI가 만든 JSON 붙여넣기로 등록 */
 export default function PasteRegister({
@@ -33,8 +52,20 @@ export default function PasteRegister({
   const [error, setError] = useState<string | null>(null);
   const [review, setReview] = useState<ReviewData | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const validKeys = new Set(categories.map((c) => c.key));
+  const aiPrompt = buildAiPrompt(categories);
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(aiPrompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // 클립보드 권한이 없으면 사용자가 pre 블록에서 직접 복사
+    }
+  };
 
   const analyze = () => {
     setError(null);
@@ -144,16 +175,30 @@ export default function PasteRegister({
 
         <details className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
           <summary className="cursor-pointer font-medium">
-            CLI AI(Claude Code 등)로 파싱해서 붙여넣기 — JSON 형식 안내
+            내 AI로 파싱하기 — 프롬프트 복사해서 쓰세요 (ChatGPT·Claude·Gemini 등)
           </summary>
-          <p className="mt-2">
-            견적서 파일을 CLI AI에 주고 아래 형식의 JSON으로 변환을 요청한 뒤, 결과를 이 입력창에
-            붙여넣으면 검수 화면으로 바로 이어집니다. <code>categoryKey</code>는{" "}
-            {categories.map((c) => c.key).join(", ")} 중 하나이거나 null입니다.
-          </p>
-          <pre className="mt-2 overflow-x-auto rounded bg-slate-900 p-3 text-xs text-slate-100">
-            {JSON_EXAMPLE}
+          <ol className="mt-3 list-decimal space-y-1 pl-5">
+            <li>
+              아래 <b>프롬프트 복사</b> 버튼을 누르세요.
+            </li>
+            <li>
+              쓰시는 AI 채팅에 프롬프트를 붙여넣고, <b>견적서 파일(또는 텍스트)을 함께</b>{" "}
+              첨부해서 보내세요.
+            </li>
+            <li>AI가 돌려준 JSON을 통째로 복사해서 위 입력창에 붙여넣고 분석을 누르세요.</li>
+          </ol>
+          <button
+            onClick={copyPrompt}
+            className="mt-3 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+          >
+            {copied ? "복사됨 ✓" : "프롬프트 복사"}
+          </button>
+          <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-slate-900 p-3 text-xs leading-relaxed text-slate-100">
+            {aiPrompt}
           </pre>
+          <p className="mt-2 text-xs text-slate-400">
+            공정을 추가·삭제하면 프롬프트의 공정 목록도 자동으로 반영됩니다.
+          </p>
         </details>
       </div>
 

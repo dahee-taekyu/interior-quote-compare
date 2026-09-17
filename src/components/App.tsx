@@ -115,7 +115,7 @@ export default function App() {
 
       {/* 컨텐츠 영역 */}
       <main className="min-w-0 flex-1 px-8 py-8">
-        <div className="max-w-7xl">
+        <div className="mx-auto max-w-7xl">
         {loading ? (
           <p className="text-sm text-slate-500">불러오는 중…</p>
         ) : v.kind === "overview" ? (

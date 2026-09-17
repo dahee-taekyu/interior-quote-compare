@@ -208,7 +208,7 @@ export default function VendorEditor({
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-slate-700">업체</h2>
           <ul className="space-y-1">
-            {vendors.map((v) => (
+            {[...vendors].sort((a, b) => a.name.localeCompare(b.name, "ko")).map((v) => (
               <li key={v.id} className="group flex items-center gap-1">
                 <button
                   onClick={() => setSelectedId(v.id)}

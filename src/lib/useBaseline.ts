@@ -27,5 +27,15 @@ export function useBaseline(vendors: Vendor[]) {
   };
 
   const baseline = vendors.find((v) => v.id === baselineId) ?? vendors[0] ?? null;
-  return { baseline, chooseBaseline };
+
+  // 기준 업체 맨 앞, 나머지는 가나다·abc 순
+  const ordered = [...vendors].sort((a, b) => {
+    if (baseline) {
+      if (a.id === baseline.id) return -1;
+      if (b.id === baseline.id) return 1;
+    }
+    return a.name.localeCompare(b.name, "ko");
+  });
+
+  return { baseline, chooseBaseline, ordered };
 }

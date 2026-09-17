@@ -44,7 +44,7 @@ function DetailModal({
   }, [onClose]);
 
   const lines = vendor.lineItems.filter((li) => li.categoryId === category.id);
-  const total = lines.reduce((a, li) => a + li.amount, 0);
+  const total = lines.filter((li) => !li.isOption).reduce((a, li) => a + li.amount, 0);
 
   return (
     <div
@@ -69,16 +69,40 @@ function DetailModal({
           </button>
         </div>
 
-        <ul className="mt-4 divide-y divide-slate-100">
+        <ul className="mt-4 max-h-[60vh] divide-y divide-slate-100 overflow-y-auto">
           {lines.length === 0 ? (
             <li className="py-4 text-sm text-slate-400">세부항목이 없습니다.</li>
           ) : (
             lines.map((li) => (
-              <li key={li.id} className="flex items-baseline justify-between gap-3 py-2.5">
-                <span className="text-sm text-slate-600">{li.name}</span>
-                <span className="shrink-0 text-sm font-semibold text-slate-900">
-                  {formatKRW(li.amount)}원
-                </span>
+              <li key={li.id} className={`py-2.5 ${li.isOption ? "opacity-50" : ""}`}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm text-slate-700">
+                    {li.name}
+                    {li.isOption && (
+                      <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+                        옵션·미정
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold text-slate-900">
+                    {li.amount > 0 ? `${formatKRW(li.amount)}원` : "—"}
+                  </span>
+                </div>
+                {(li.spec || li.unitPrice) && (
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {li.spec}
+                    {li.unitPrice != null && li.qty != null && (
+                      <span className="ml-1.5">
+                        {formatKRW(li.unitPrice)} × {li.qty}
+                        {li.unit ?? ""}
+                      </span>
+                    )}
+                    {li.unitPrice != null && li.qty == null && (
+                      <span className="ml-1.5">단가 {formatKRW(li.unitPrice)}</span>
+                    )}
+                  </p>
+                )}
+                {li.memo && <p className="mt-0.5 text-xs text-amber-600">※ {li.memo}</p>}
               </li>
             ))
           )}

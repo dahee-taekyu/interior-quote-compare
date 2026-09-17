@@ -13,6 +13,15 @@ export async function PATCH(req: Request, { params }: Params) {
       ...(body.contact !== undefined && { contact: body.contact || null }),
       ...(body.memo !== undefined && { memo: body.memo || null }),
       ...(body.vatIncluded !== undefined && { vatIncluded: !!body.vatIncluded }),
+      ...(body.pyeong !== undefined && { pyeong: body.pyeong ? Number(body.pyeong) : null }),
+      ...(body.overheadPercent !== undefined && {
+        overheadPercent: body.overheadPercent ? Number(body.overheadPercent) : null,
+      }),
+      ...(body.overheadLabel !== undefined && { overheadLabel: body.overheadLabel || null }),
+      ...(body.adjustment !== undefined && { adjustment: Math.round(Number(body.adjustment) || 0) }),
+      ...(body.periodDays !== undefined && {
+        periodDays: body.periodDays ? Math.round(Number(body.periodDays)) : null,
+      }),
     },
     include: { items: true, lineItems: true },
   });

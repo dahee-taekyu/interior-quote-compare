@@ -1,9 +1,15 @@
 import { z } from "zod";
 
 export const ParsedItemSchema = z.object({
-  rawText: z.string().describe("견적서에 적힌 항목명 원문 그대로"),
-  detail: z.string().nullable().describe("자재 스펙, 수량 등 세부 설명"),
+  rawText: z.string().describe("견적서에 적힌 항목명(품명) 원문 그대로"),
+  detail: z.string().nullable().describe("규격·브랜드 (예: LX장판 2.2T, 600각 포세린)"),
+  unit: z.string().nullable().describe("단위 (식/ea/m/m2/py/자/품 등)"),
+  qty: z.number().nullable().describe("수량"),
+  unitPrice: z.number().nullable().describe("단가(원)"),
   amount: z.number().nullable().describe("금액(원). 견적서에 금액이 없으면 null"),
+  isOption: z
+    .boolean()
+    .describe("미정·별도·소비자 직접구매 등 합계에 포함되지 않는 옵션 항목이면 true"),
   categoryKey: z
     .string()
     .nullable()
@@ -19,11 +25,18 @@ export const ParsedQuoteSchema = z.object({
   vatIncluded: z
     .boolean()
     .nullable()
-    .describe("부가세 포함 여부. 견적서에 명시가 없으면 null"),
+    .describe("세부항목 금액에 부가세가 포함되어 있으면 true, 별도 가산이면 false, 불명이면 null"),
   totalOnDocument: z
     .number()
     .nullable()
-    .describe("견적서에 적힌 총액(원). 없으면 null"),
+    .describe("견적서에 적힌 최종 총액(원). 없으면 null"),
+  pyeong: z.number().nullable().describe("평형(공급면적). 없으면 null"),
+  overheadPercent: z
+    .number()
+    .nullable()
+    .describe("이윤·공과잡비 등 가산 비율(%). 예: 공사비의 7% → 7. 없으면 null"),
+  overheadLabel: z.string().nullable().describe("가산액의 명칭 (이윤, 공과잡비 등)"),
+  periodDays: z.number().nullable().describe("공사 기간(일). 없으면 null"),
   items: z.array(ParsedItemSchema),
 });
 

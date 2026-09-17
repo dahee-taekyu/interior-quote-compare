@@ -2,12 +2,31 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Category, ItemStatus, Vendor } from "@/lib/types";
-import { formatKRW } from "@/lib/calc";
+import { applyVendorMeta, formatKRW } from "@/lib/calc";
 
 interface Row {
   name: string;
+  spec: string;
+  unit: string;
+  qty: string; // 입력 편의를 위해 문자열로 관리
+  unitPrice: string;
   amount: number;
+  isOption: boolean;
   isTemplate: boolean;
+}
+
+function toRow(partial: Partial<Row>): Row {
+  return {
+    name: "",
+    spec: "",
+    unit: "",
+    qty: "",
+    unitPrice: "",
+    amount: 0,
+    isOption: false,
+    isTemplate: false,
+    ...partial,
+  };
 }
 
 // 공정별 입력 초안: 기본 세부항목 행 + 저장된 커스텀 행
@@ -15,18 +34,34 @@ function buildDrafts(vendor: Vendor | null, categories: Category[]) {
   const map = new Map<number, Row[]>();
   for (const c of categories) {
     const saved = vendor?.lineItems.filter((li) => li.categoryId === c.id) ?? [];
-    const savedNames = new Set(saved.map((s) => s.name));
-    const rows: Row[] = c.templates.map((t) => ({
-      name: t.name,
-      amount: saved.find((s) => s.name === t.name)?.amount ?? 0,
-      isTemplate: true,
-    }));
+    const rows: Row[] = c.templates.map((t) => {
+      const s = saved.find((x) => x.name === t.name);
+      return toRow({
+        name: t.name,
+        spec: s?.spec ?? "",
+        unit: s?.unit ?? "",
+        qty: s?.qty != null ? String(s.qty) : "",
+        unitPrice: s?.unitPrice != null ? String(s.unitPrice) : "",
+        amount: s?.amount ?? 0,
+        isOption: s?.isOption ?? false,
+        isTemplate: true,
+      });
+    });
     for (const s of saved) {
       if (!c.templates.some((t) => t.name === s.name)) {
-        rows.push({ name: s.name, amount: s.amount, isTemplate: false });
+        rows.push(
+          toRow({
+            name: s.name,
+            spec: s.spec ?? "",
+            unit: s.unit ?? "",
+            qty: s.qty != null ? String(s.qty) : "",
+            unitPrice: s.unitPrice != null ? String(s.unitPrice) : "",
+            amount: s.amount,
+            isOption: s.isOption,
+          })
+        );
       }
     }
-    void savedNames;
     map.set(c.id, rows);
   }
   return map;
@@ -73,7 +108,18 @@ export default function VendorEditor({
     setDrafts((prev) => {
       const next = new Map(prev);
       const rows = [...(next.get(categoryId) ?? [])];
-      rows[index] = { ...rows[index], ...patch };
+      const merged = { ...rows[index], ...patch };
+      // 단가×수량이 둘 다 있으면 금액 자동 계산
+      const qty = Number(merged.qty);
+      const unitPrice = Number(merged.unitPrice);
+      if (
+        (patch.qty !== undefined || patch.unitPrice !== undefined) &&
+        qty > 0 &&
+        unitPrice > 0
+      ) {
+        merged.amount = Math.round(qty * unitPrice);
+      }
+      rows[index] = merged;
       next.set(categoryId, rows);
       return next;
     });
@@ -83,10 +129,7 @@ export default function VendorEditor({
   const addRow = (categoryId: number) => {
     setDrafts((prev) => {
       const next = new Map(prev);
-      next.set(categoryId, [
-        ...(next.get(categoryId) ?? []),
-        { name: "", amount: 0, isTemplate: false },
-      ]);
+      next.set(categoryId, [...(next.get(categoryId) ?? []), toRow({})]);
       return next;
     });
   };
@@ -108,8 +151,11 @@ export default function VendorEditor({
   };
 
   const subtotal = (categoryId: number) =>
-    (drafts.get(categoryId) ?? []).reduce((a, r) => a + r.amount, 0);
-  const total = categories.reduce((a, c) => a + subtotal(c.id), 0);
+    (drafts.get(categoryId) ?? [])
+      .filter((r) => !r.isOption)
+      .reduce((a, r) => a + r.amount, 0);
+  const allSubtotal = categories.reduce((a, c) => a + subtotal(c.id), 0);
+  const totals = selected ? applyVendorMeta(selected, allSubtotal) : null;
 
   const addVendor = async () => {
     const name = newVendorName.trim();
@@ -158,12 +204,12 @@ export default function VendorEditor({
     await onChanged();
   };
 
-  const toggleVat = async () => {
+  const patchVendor = async (patch: Record<string, unknown>) => {
     if (!selected) return;
     await fetch(`/api/vendors/${selected.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ vatIncluded: !selected.vatIncluded }),
+      body: JSON.stringify(patch),
     });
     await onChanged();
   };
@@ -173,8 +219,17 @@ export default function VendorEditor({
     setSaving(true);
     const lineItems = categories.flatMap((c) =>
       (drafts.get(c.id) ?? [])
-        .filter((r) => r.name.trim() && r.amount > 0)
-        .map((r) => ({ categoryId: c.id, name: r.name.trim(), amount: r.amount }))
+        .filter((r) => r.name.trim() && (r.amount > 0 || r.isOption))
+        .map((r) => ({
+          categoryId: c.id,
+          name: r.name.trim(),
+          spec: r.spec,
+          unit: r.unit,
+          qty: r.qty ? Number(r.qty) : undefined,
+          unitPrice: r.unitPrice ? Number(r.unitPrice) : undefined,
+          amount: r.amount,
+          isOption: r.isOption,
+        }))
     );
     const statusItems = categories
       .filter((c) => subtotal(c.id) === 0)
@@ -200,6 +255,9 @@ export default function VendorEditor({
     { value: "EXCLUDED", label: "미포함" },
     { value: "BUNDLED", label: "다른 공정에 묶임" },
   ];
+
+  const metaInput =
+    "w-20 rounded-md border border-slate-300 px-2 py-1 text-right text-sm focus:border-slate-500 focus:outline-none";
 
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
@@ -271,7 +329,7 @@ export default function VendorEditor({
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addCategory()}
-              placeholder="예: 붙박이장"
+              placeholder="예: 홈네트워크"
               className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
             />
             <button
@@ -286,29 +344,102 @@ export default function VendorEditor({
 
       {/* 견적 입력 */}
       {selected ? (
-        <section className="space-y-4">
-          <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
-            <div>
+        <section className="min-w-0 space-y-4">
+          {/* 상단 저장 바 + 견적서 메타 */}
+          <div className="sticky top-0 z-10 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">{selected.name}</h2>
-              <label className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-                <input type="checkbox" checked={selected.vatIncluded} onChange={toggleVat} />
-                부가세 포함 견적
+              <div className="flex items-center gap-4">
+                {totals && (
+                  <div className="text-right">
+                    <p className="text-xs text-slate-400">
+                      공급가 {formatKRW(totals.subtotal)}
+                      {totals.overhead > 0 &&
+                        ` + ${selected.overheadLabel ?? "이윤"} ${formatKRW(totals.overhead)}`}
+                      {totals.vat > 0 && ` + VAT ${formatKRW(totals.vat)}`}
+                    </p>
+                    <p className="text-xl font-bold text-slate-900">
+                      총 {formatKRW(totals.grandTotal)}원
+                    </p>
+                  </div>
+                )}
+                <button
+                  onClick={save}
+                  disabled={saving}
+                  className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  {saving ? "저장 중…" : "저장"}
+                </button>
+                {savedAt && <span className="text-xs font-medium text-emerald-600">저장됨 ✓</span>}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-sm text-slate-600">
+              <label className="flex items-center gap-1.5">
+                평형
+                <input
+                  type="number"
+                  defaultValue={selected.pyeong ?? ""}
+                  onBlur={(e) => patchVendor({ pyeong: e.target.value })}
+                  className={metaInput}
+                />
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  defaultValue={selected.overheadLabel ?? ""}
+                  onBlur={(e) => patchVendor({ overheadLabel: e.target.value })}
+                  placeholder="이윤/공과잡비"
+                  className="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none"
+                />
+                <input
+                  type="number"
+                  step={0.5}
+                  defaultValue={selected.overheadPercent ?? ""}
+                  onBlur={(e) => patchVendor({ overheadPercent: e.target.value })}
+                  className={metaInput}
+                />
+                %
+              </label>
+              <label className="flex items-center gap-1.5">
+                단수조정
+                <input
+                  type="number"
+                  defaultValue={selected.adjustment || ""}
+                  onBlur={(e) => patchVendor({ adjustment: e.target.value })}
+                  className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right text-sm focus:border-slate-500 focus:outline-none"
+                />
+                원
+              </label>
+              <label className="flex items-center gap-1.5">
+                공사기간
+                <input
+                  type="number"
+                  defaultValue={selected.periodDays ?? ""}
+                  onBlur={(e) => patchVendor({ periodDays: e.target.value })}
+                  className={metaInput}
+                />
+                일
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={selected.vatIncluded}
+                  onChange={(e) => patchVendor({ vatIncluded: e.target.checked })}
+                />
+                항목 금액에 부가세 포함
               </label>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-xs text-slate-400">입력 합계</p>
-                <p className="text-xl font-bold text-slate-900">{formatKRW(total)}원</p>
-              </div>
-              <button
-                onClick={save}
-                disabled={saving}
-                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-              >
-                {saving ? "저장 중…" : "저장"}
-              </button>
-              {savedAt && <span className="text-xs font-medium text-emerald-600">저장됨 ✓</span>}
-            </div>
+          </div>
+
+          {/* 열 헤더 안내 */}
+          <div className="hidden gap-2 px-6 text-[11px] font-medium text-slate-400 xl:grid xl:grid-cols-[170px_1fr_64px_64px_90px_100px_44px_24px]">
+            <span>품명</span>
+            <span>규격</span>
+            <span className="text-right">단위</span>
+            <span className="text-right">수량</span>
+            <span className="text-right">단가</span>
+            <span className="text-right">금액</span>
+            <span className="text-center">옵션</span>
+            <span />
           </div>
 
           {categories.map((c) => {
@@ -345,38 +476,88 @@ export default function VendorEditor({
                 </div>
 
                 <div className="space-y-1.5">
-                  {rows.map((row, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      {row.isTemplate ? (
-                        <span className="w-44 shrink-0 text-sm text-slate-600">{row.name}</span>
-                      ) : (
+                  {rows.map((row, i) => {
+                    const cell =
+                      "rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none disabled:bg-slate-50";
+                    return (
+                      <div
+                        key={i}
+                        className={`grid grid-cols-2 items-center gap-2 xl:grid-cols-[170px_1fr_64px_64px_90px_100px_44px_24px] ${
+                          row.isOption ? "opacity-60" : ""
+                        }`}
+                      >
+                        {row.isTemplate ? (
+                          <span className="truncate text-sm text-slate-600" title={row.name}>
+                            {row.name}
+                          </span>
+                        ) : (
+                          <input
+                            value={row.name}
+                            onChange={(e) => setRow(c.id, i, { name: e.target.value })}
+                            placeholder="품명"
+                            className={cell}
+                          />
+                        )}
                         <input
-                          value={row.name}
-                          onChange={(e) => setRow(c.id, i, { name: e.target.value })}
-                          placeholder="세부항목 이름"
-                          className="w-44 shrink-0 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+                          value={row.spec}
+                          onChange={(e) => setRow(c.id, i, { spec: e.target.value })}
+                          placeholder="규격·브랜드 (예: LX장판 2.2T)"
+                          className={cell}
                         />
-                      )}
-                      <input
-                        type="number"
-                        min={0}
-                        step={10000}
-                        value={row.amount || ""}
-                        onChange={(e) => setRow(c.id, i, { amount: Number(e.target.value) })}
-                        placeholder="금액(원)"
-                        className="w-36 rounded-md border border-slate-300 px-2.5 py-1.5 text-right text-sm focus:border-slate-500 focus:outline-none"
-                      />
-                      {!row.isTemplate && (
-                        <button
-                          onClick={() => removeRow(c.id, i)}
-                          className="text-slate-300 transition hover:text-red-500"
-                          title="행 삭제"
+                        <input
+                          value={row.unit}
+                          onChange={(e) => setRow(c.id, i, { unit: e.target.value })}
+                          placeholder="단위"
+                          className={`${cell} text-right`}
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.qty}
+                          onChange={(e) => setRow(c.id, i, { qty: e.target.value })}
+                          placeholder="수량"
+                          className={`${cell} text-right`}
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.unitPrice}
+                          onChange={(e) => setRow(c.id, i, { unitPrice: e.target.value })}
+                          placeholder="단가"
+                          className={`${cell} text-right`}
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.amount || ""}
+                          onChange={(e) => setRow(c.id, i, { amount: Number(e.target.value) })}
+                          placeholder="금액"
+                          className={`${cell} text-right font-medium`}
+                        />
+                        <label
+                          className="flex items-center justify-center"
+                          title="미정·별도·직접구매 등 합계 제외"
                         >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                          <input
+                            type="checkbox"
+                            checked={row.isOption}
+                            onChange={(e) => setRow(c.id, i, { isOption: e.target.checked })}
+                          />
+                        </label>
+                        {!row.isTemplate ? (
+                          <button
+                            onClick={() => removeRow(c.id, i)}
+                            className="text-slate-300 transition hover:text-red-500"
+                            title="행 삭제"
+                          >
+                            ✕
+                          </button>
+                        ) : (
+                          <span />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 <button
                   onClick={() => addRow(c.id)}

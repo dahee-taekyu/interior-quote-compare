@@ -31,14 +31,20 @@ export interface QuoteItem {
   memo: string | null;
 }
 
-/** 견적의 실제 금액 줄 — 기본 세부항목 또는 커스텀 */
+/** 견적의 실제 금액 줄 — 품명·규격·단위·수량·단가·금액·비고 */
 export interface LineItem {
   id: number;
   vendorId: number;
   categoryId: number;
   name: string;
+  spec: string | null;
+  unit: string | null;
+  qty: number | null;
+  unitPrice: number | null;
   amount: number;
   memo: string | null;
+  /** 미정·별도·직접구매 등 합계 제외 옵션 항목 */
+  isOption: boolean;
 }
 
 export interface Vendor {
@@ -46,7 +52,13 @@ export interface Vendor {
   name: string;
   contact: string | null;
   memo: string | null;
+  /** true = 세부항목 금액에 부가세 포함 / false = 공급가(총액에 10% 가산) */
   vatIncluded: boolean;
+  pyeong: number | null;
+  overheadPercent: number | null;
+  overheadLabel: string | null;
+  adjustment: number;
+  periodDays: number | null;
   items: QuoteItem[];
   lineItems: LineItem[];
 }

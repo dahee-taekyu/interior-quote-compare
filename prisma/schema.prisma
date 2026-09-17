@@ -26,27 +26,47 @@ model SubItemTemplate {
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 }
 
-// 업체 견적의 실제 금액 줄 — 기본 세부항목 이름이거나 커스텀 이름
+// 업체 견적의 실제 금액 줄 — 품명·규격·단위·수량·단가·금액·비고
 model LineItem {
   id         Int      @id @default(autoincrement())
   vendorId   Int
   categoryId Int
   name       String
+  /// 규격 (예: 600각 포세린 타일, LX장판 2.2T)
+  spec       String?
+  /// 단위 (식/건/ea/m/m²/py/자/품 등)
+  unit       String?
+  qty        Float?
+  unitPrice  Int?
   amount     Int      @default(0)
+  /// 비고 (조건, 브랜드 등)
   memo       String?
+  /// true = 미정·별도·소비자 직접구매 등 합계 제외 옵션 항목
+  isOption   Boolean  @default(false)
   vendor     Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 }
 
 model Vendor {
-  id          Int         @id @default(autoincrement())
-  name        String
-  contact     String?
-  memo        String?
-  vatIncluded Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  items       QuoteItem[]
-  lineItems   LineItem[]
+  id              Int         @id @default(autoincrement())
+  name            String
+  contact         String?
+  memo            String?
+  /// true = 세부항목 금액에 부가세가 이미 포함 / false = 공급가 기준(총액에 10% 가산)
+  vatIncluded     Boolean     @default(false)
+  /// 공급면적 평형
+  pyeong          Float?
+  /// 이윤·공과잡비 % (공급가 합계에 가산)
+  overheadPercent Float?
+  /// 가산액의 견적서상 명칭 (이윤, 공과잡비 등)
+  overheadLabel   String?
+  /// 단수 조정 등 보정액 (음수 가능)
+  adjustment      Int         @default(0)
+  /// 공사 기간(일)
+  periodDays      Int?
+  createdAt       DateTime    @default(now())
+  items           QuoteItem[]
+  lineItems       LineItem[]
 }
 
 // 공정(대공정) 단위 상태. 금액은 LineItem에 있고, 세부항목이 하나라도 있으면 '포함'으로 본다.

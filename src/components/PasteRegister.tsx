@@ -19,20 +19,30 @@ ${categoryList}
 - 표준 공정에 명확히 해당하지 않는 시공 항목(붙박이장, 에어컨 등)은 "etc"로, 견적 항목이 아닌 것(할인·조정액 등)은 categoryKey를 null로 둡니다.
 - 표현이 모호하거나 여러 공정에 걸치면 confidence를 "low"로 하고 note에 확인할 점을 적습니다.
 - 금액은 원 단위 숫자로 변환합니다 ("1,200,000" → 1200000, "120만" → 1200000).
-- 부가세 포함 여부(vatIncluded)와 견적서에 적힌 총액(totalOnDocument)도 찾고, 명시가 없으면 null.
-- 소계·합계 줄은 items에 넣지 않습니다.
+- 단위(unit: 식/ea/m/m2/py/자/품 등)·수량(qty)·단가(unitPrice)가 견적서에 있으면 함께 추출합니다. 없으면 null.
+- "미정", "별도", "추후 고려", "소비자 직접구매" 등 합계에 포함되지 않는 항목은 isOption을 true로, amount는 0으로 둡니다.
+- 견적서 메타도 찾습니다: 세부항목 금액에 부가세 포함 여부(vatIncluded, 총액에만 가산이면 false), 최종 총액(totalOnDocument), 평형(pyeong), 이윤·공과잡비 비율(overheadPercent)과 명칭(overheadLabel), 공사기간(periodDays). 없으면 null.
+- 소계·합계·이윤·부가세 줄은 items에 넣지 않습니다 (메타로만 기록).
 
 출력은 아래 형식의 JSON 하나만, 코드블록이나 설명 없이:
 {
   "vendorName": "OO인테리어",
-  "vatIncluded": true,
-  "totalOnDocument": 42000000,
+  "vatIncluded": false,
+  "totalOnDocument": 49729000,
+  "pyeong": 24,
+  "overheadPercent": 4,
+  "overheadLabel": "공과잡비",
+  "periodDays": null,
   "items": [
     {
-      "rawText": "샤시공사(LX하우시스) 9,500,000",
-      "detail": "이중창 교체",
-      "amount": 9500000,
-      "categoryKey": "windows",
+      "rawText": "장판",
+      "detail": "LX장판 2.2T",
+      "unit": "py",
+      "qty": 24,
+      "unitPrice": 53000,
+      "amount": 1272000,
+      "isOption": false,
+      "categoryKey": "flooring",
       "confidence": "high",
       "note": null
     }
@@ -83,13 +93,23 @@ export default function PasteRegister({
         }
         setReview({
           vendorName: typeof parsed.vendorName === "string" ? parsed.vendorName : "",
-          vatIncluded: parsed.vatIncluded !== false,
+          vatIncluded: parsed.vatIncluded === true,
           totalOnDocument:
             typeof parsed.totalOnDocument === "number" ? parsed.totalOnDocument : null,
+          pyeong: typeof parsed.pyeong === "number" ? parsed.pyeong : null,
+          overheadPercent:
+            typeof parsed.overheadPercent === "number" ? parsed.overheadPercent : null,
+          overheadLabel:
+            typeof parsed.overheadLabel === "string" ? parsed.overheadLabel : null,
+          periodDays: typeof parsed.periodDays === "number" ? parsed.periodDays : null,
           items: parsed.items.map(
             (it: {
               rawText?: string;
               detail?: string | null;
+              unit?: string | null;
+              qty?: number | null;
+              unitPrice?: number | null;
+              isOption?: boolean;
               amount?: number | null;
               categoryKey?: string | null;
               confidence?: string;
@@ -97,6 +117,10 @@ export default function PasteRegister({
             }) => ({
               rawText: String(it.rawText ?? ""),
               detail: it.detail ?? "",
+              unit: it.unit ?? null,
+              qty: typeof it.qty === "number" ? it.qty : null,
+              unitPrice: typeof it.unitPrice === "number" ? it.unitPrice : null,
+              isOption: it.isOption === true,
               amount: typeof it.amount === "number" ? it.amount : 0,
               categoryKey:
                 it.categoryKey && validKeys.has(it.categoryKey)

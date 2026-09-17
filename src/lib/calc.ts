@@ -1,15 +1,16 @@
 import type { Category, ItemStatus, Vendor } from "./types";
 
-/** 대공정별 금액 = 해당 공정 세부항목(LineItem) 합계 */
+/** 대공정별 금액 = 해당 공정 세부항목 합계 (옵션 항목 제외) */
 export function categoryAmount(vendor: Vendor, categoryId: number): number {
   return vendor.lineItems
-    .filter((li) => li.categoryId === categoryId)
+    .filter((li) => li.categoryId === categoryId && !li.isOption)
     .reduce((a, li) => a + li.amount, 0);
 }
 
 /** 대공정 상태: 세부항목이 있으면 포함, 없으면 명시된 상태(기본 '확인 필요') */
 export function categoryStatus(vendor: Vendor, categoryId: number): ItemStatus {
-  if (vendor.lineItems.some((li) => li.categoryId === categoryId)) return "INCLUDED";
+  if (vendor.lineItems.some((li) => li.categoryId === categoryId && !li.isOption))
+    return "INCLUDED";
   const item = vendor.items.find((i) => i.categoryId === categoryId);
   return (item?.status as ItemStatus) ?? "UNKNOWN";
 }
@@ -29,11 +30,38 @@ export function marketAverage(
   return Math.round(amounts.reduce((a, b) => a + b, 0) / amounts.length);
 }
 
-export interface VendorSummary {
+export interface VendorTotals {
+  /** 세부항목(공급가) 합계 */
+  subtotal: number;
+  /** 이윤·공과잡비 가산액 */
+  overhead: number;
+  /** 부가세 (vatIncluded면 0) */
+  vat: number;
+  /** 최종 총액 = subtotal + overhead + adjustment + vat */
+  grandTotal: number;
+  /** 평당가 (평형 미입력 시 null) */
+  perPyeong: number | null;
+}
+
+/** 공급가 합계에 이윤·단수조정·부가세를 적용한 최종 총액. 실제 견적서 구조와 동일:
+ *  (공급가 × (1+이윤%)) + 단수조정, 여기에 부가세 별도면 ×1.1 */
+export function applyVendorMeta(vendor: Vendor, subtotal: number): VendorTotals {
+  const overhead = Math.round(subtotal * ((vendor.overheadPercent ?? 0) / 100));
+  const beforeVat = subtotal + overhead + vendor.adjustment;
+  const vat = vendor.vatIncluded ? 0 : Math.round(beforeVat * 0.1);
+  const grandTotal = beforeVat + vat;
+  return {
+    subtotal,
+    overhead,
+    vat,
+    grandTotal,
+    perPyeong: vendor.pyeong ? Math.round(grandTotal / vendor.pyeong) : null,
+  };
+}
+
+export interface VendorSummary extends VendorTotals {
   vendorId: number;
-  /** 견적서에 있는 세부항목 합계 */
-  rawTotal: number;
-  /** 누락 공정을 타 업체 평균가로 채운 동일 조건 환산 총액 */
+  /** 누락 공정을 타 업체 평균가로 채운 동일 조건 환산 총액 (이윤·부가세 동일 적용) */
   adjustedTotal: number;
   fills: Map<number, number>;
   missingCount: number;
@@ -42,7 +70,7 @@ export interface VendorSummary {
 
 export function summarize(vendors: Vendor[], categories: Category[]): VendorSummary[] {
   return vendors.map((v) => {
-    let rawTotal = 0;
+    let subtotal = 0;
     const fills = new Map<number, number>();
     let missingCount = 0;
     let unknownCount = 0;
@@ -50,7 +78,7 @@ export function summarize(vendors: Vendor[], categories: Category[]): VendorSumm
     for (const c of categories) {
       const status = categoryStatus(v, c.id);
       if (status === "INCLUDED") {
-        rawTotal += categoryAmount(v, c.id);
+        subtotal += categoryAmount(v, c.id);
       } else if (status === "BUNDLED") {
         // 다른 공정 금액에 이미 반영 — 보정 없음
       } else {
@@ -64,8 +92,11 @@ export function summarize(vendors: Vendor[], categories: Category[]): VendorSumm
       }
     }
 
-    const adjustedTotal = rawTotal + [...fills.values()].reduce((a, b) => a + b, 0);
-    return { vendorId: v.id, rawTotal, adjustedTotal, fills, missingCount, unknownCount };
+    const totals = applyVendorMeta(v, subtotal);
+    const fillSum = [...fills.values()].reduce((a, b) => a + b, 0);
+    const adjustedTotal = applyVendorMeta(v, subtotal + fillSum).grandTotal;
+
+    return { vendorId: v.id, ...totals, adjustedTotal, fills, missingCount, unknownCount };
   });
 }
 

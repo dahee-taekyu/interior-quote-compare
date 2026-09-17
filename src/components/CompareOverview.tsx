@@ -111,9 +111,20 @@ export default function CompareOverview({
                 )}
               </div>
               <p className="mt-3 text-2xl font-bold tracking-tight text-slate-900">
-                {formatMan(s.rawTotal)}원
+                {formatMan(s.grandTotal)}원
               </p>
-              <p className="text-xs text-slate-400">견적서 합계</p>
+              <p className="text-xs text-slate-400">
+                총액(VAT 포함)
+                {s.perPyeong !== null && (
+                  <span className="ml-1.5 text-slate-500">· 평당 {formatMan(s.perPyeong)}원</span>
+                )}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                공급가 {formatMan(s.subtotal)}원
+                {s.overhead > 0 &&
+                  ` + ${v.overheadLabel ?? "이윤"} ${v.overheadPercent}%`}
+                {s.vat > 0 && " + VAT"}
+              </p>
               <div className="mt-2 flex items-center gap-2">
                 <p
                   className={`text-sm font-semibold ${
@@ -132,9 +143,6 @@ export default function CompareOverview({
                 <p className="mt-0.5 text-[11px] text-slate-400">
                   누락 {s.fills.size}개 공정을 평균가로 보정
                 </p>
-              )}
-              {!v.vatIncluded && (
-                <p className="mt-1 text-[11px] font-medium text-amber-600">⚠ 부가세 별도 견적</p>
               )}
             </button>
           );

@@ -9,7 +9,11 @@ export const EXCLUDE = "__exclude__";
 export interface ReviewItem {
   rawText: string;
   detail: string;
+  unit?: string | null;
+  qty?: number | null;
+  unitPrice?: number | null;
   amount: number;
+  isOption?: boolean;
   categoryKey: string; // 표준 공정 key 또는 EXCLUDE
   confidence: "high" | "medium" | "low";
   note: string | null;
@@ -19,6 +23,10 @@ export interface ReviewData {
   vendorName: string;
   vatIncluded: boolean;
   totalOnDocument: number | null;
+  pyeong?: number | null;
+  overheadPercent?: number | null;
+  overheadLabel?: string | null;
+  periodDays?: number | null;
   items: ReviewItem[];
 }
 
@@ -71,14 +79,37 @@ export default function ReviewPanel({
       });
       const vendor = await vRes.json();
 
+      // 견적서 메타(평형·이윤%·공사기간)도 함께 저장
+      if (
+        initial.pyeong != null ||
+        initial.overheadPercent != null ||
+        initial.periodDays != null
+      ) {
+        await fetch(`/api/vendors/${vendor.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pyeong: initial.pyeong ?? undefined,
+            overheadPercent: initial.overheadPercent ?? undefined,
+            overheadLabel: initial.overheadLabel ?? undefined,
+            periodDays: initial.periodDays ?? undefined,
+          }),
+        });
+      }
+
       // 각 파싱 항목을 세부항목(LineItem)으로 그대로 저장 — 원문 보존
       const idOf = new Map(categories.map((c) => [c.key, c.id]));
       const payload = items
         .filter((it) => it.categoryKey !== EXCLUDE && idOf.has(it.categoryKey))
         .map((it) => ({
           categoryId: idOf.get(it.categoryKey)!,
-          name: it.detail ? `${it.rawText} (${it.detail})` : it.rawText,
+          name: it.rawText,
+          spec: it.detail || undefined,
+          unit: it.unit ?? undefined,
+          qty: it.qty ?? undefined,
+          unitPrice: it.unitPrice ?? undefined,
           amount: it.amount,
+          isOption: it.isOption ?? false,
           memo: "파싱으로 등록",
         }));
 

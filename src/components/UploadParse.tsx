@@ -36,13 +36,21 @@ export default function UploadParse({
       const parsed = body as ParsedQuote;
       setReview({
         vendorName: parsed.vendorName ?? "",
-        vatIncluded: parsed.vatIncluded ?? true,
+        vatIncluded: parsed.vatIncluded ?? false,
         totalOnDocument: parsed.totalOnDocument,
+        pyeong: parsed.pyeong,
+        overheadPercent: parsed.overheadPercent,
+        overheadLabel: parsed.overheadLabel,
+        periodDays: parsed.periodDays,
         items: parsed.items.map((it) => {
           const validKeys = new Set(categories.map((c) => c.key));
           return {
             rawText: it.rawText,
             detail: it.detail ?? "",
+            unit: it.unit,
+            qty: it.qty,
+            unitPrice: it.unitPrice,
+            isOption: it.isOption,
             amount: it.amount ?? 0,
             categoryKey:
               it.categoryKey && validKeys.has(it.categoryKey)

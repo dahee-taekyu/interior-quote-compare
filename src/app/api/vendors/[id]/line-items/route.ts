@@ -12,8 +12,17 @@ export async function PUT(req: Request, { params }: Params) {
   const { id } = await params;
   const vendorId = Number(id);
   const body = await req.json();
-  const items: { categoryId: number; name: string; amount: number; memo?: string }[] =
-    Array.isArray(body.items) ? body.items : [];
+  const items: {
+    categoryId: number;
+    name: string;
+    spec?: string;
+    unit?: string;
+    qty?: number;
+    unitPrice?: number;
+    amount: number;
+    memo?: string;
+    isOption?: boolean;
+  }[] = Array.isArray(body.items) ? body.items : [];
   const scopeCategoryId: number | undefined =
     typeof body.categoryId === "number" ? body.categoryId : undefined;
 
@@ -21,10 +30,18 @@ export async function PUT(req: Request, { params }: Params) {
     .map((it) => ({
       categoryId: Number(it.categoryId),
       name: String(it.name ?? "").trim(),
+      spec: it.spec?.trim() || null,
+      unit: it.unit?.trim() || null,
+      qty: Number.isFinite(Number(it.qty)) && Number(it.qty) > 0 ? Number(it.qty) : null,
+      unitPrice:
+        Number.isFinite(Number(it.unitPrice)) && Number(it.unitPrice) > 0
+          ? Math.round(Number(it.unitPrice))
+          : null,
       amount: Math.max(0, Math.round(Number(it.amount) || 0)),
       memo: it.memo?.trim() || null,
+      isOption: !!it.isOption,
     }))
-    .filter((it) => it.name && it.amount > 0);
+    .filter((it) => it.name && (it.amount > 0 || it.isOption));
 
   await prisma.$transaction([
     prisma.lineItem.deleteMany({

@@ -84,70 +84,121 @@ export default function CompareOverview({
         </div>
       </header>
 
-      {/* 업체 요약 카드 — 업체가 많아지면 자동 줄바꿈 */}
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))]">
-        {ordered.map((v) => {
-          const s = summaryOf(v.id);
-          const isBaseline = v.id === baseline.id;
-          const isBest = s.adjustedTotal === bestAdjusted && vendors.length > 1;
-          return (
-            <button
-              key={v.id}
-              onClick={() => chooseBaseline(v.id)}
-              className={`rounded-2xl border-2 p-5 text-left transition ${
-                isBaseline
-                  ? "border-slate-900 bg-white shadow-md"
-                  : "border-slate-200 bg-white shadow-sm hover:border-slate-400"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-sm font-semibold text-slate-800">{v.name}</span>
-                {isBaseline ? (
-                  <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+      {/* 기준 업체 히어로 카드 */}
+      {(() => {
+        const s = summaryOf(baseline.id);
+        const isBest = s.adjustedTotal === bestAdjusted && vendors.length > 1;
+        return (
+          <div className="rounded-2xl border-2 border-slate-900 bg-white p-6 shadow-md">
+            <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-slate-900">{baseline.name}</h3>
+                  <span className="rounded-full bg-slate-900 px-2.5 py-0.5 text-[11px] font-semibold text-white">
                     기준 업체
                   </span>
-                ) : (
-                  <span className="shrink-0 text-[11px] text-slate-300">클릭해서 기준으로</span>
-                )}
+                  {isBest && (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
+                      환산 최저
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-slate-400">
+                  공급가 {formatMan(s.subtotal)}원
+                  {s.overhead > 0 && ` + ${baseline.overheadLabel ?? "이윤"} ${baseline.overheadPercent}%`}
+                  {s.vat > 0 && " + VAT"}
+                  {baseline.periodDays != null && ` · 공사기간 ${baseline.periodDays}일`}
+                </p>
               </div>
-              <p className="mt-3 text-2xl font-bold tracking-tight text-slate-900">
-                {formatMan(s.grandTotal)}원
-              </p>
-              <p className="text-xs text-slate-400">
-                총액(VAT 포함)
+              <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
+                <div>
+                  <p className="text-[11px] text-slate-400">총액(VAT 포함)</p>
+                  <p className="text-3xl font-bold tracking-tight text-slate-900">
+                    {formatMan(s.grandTotal)}원
+                  </p>
+                </div>
                 {s.perPyeong !== null && (
-                  <span className="ml-1.5 text-slate-500">· 평당 {formatMan(s.perPyeong)}원</span>
+                  <div>
+                    <p className="text-[11px] text-slate-400">평당</p>
+                    <p className="text-xl font-bold text-slate-700">{formatMan(s.perPyeong)}원</p>
+                  </div>
                 )}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-400">
-                공급가 {formatMan(s.subtotal)}원
-                {s.overhead > 0 &&
-                  ` + ${v.overheadLabel ?? "이윤"} ${v.overheadPercent}%`}
-                {s.vat > 0 && " + VAT"}
-              </p>
-              <div className="mt-2 flex items-center gap-2">
-                <p
-                  className={`text-sm font-semibold ${
-                    isBest ? "text-emerald-600" : "text-slate-600"
-                  }`}
-                >
-                  환산 {formatMan(s.adjustedTotal)}원
-                </p>
-                {isBest && (
-                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
-                    최저
-                  </span>
-                )}
+                <div>
+                  <p className="text-[11px] text-slate-400">
+                    동일 조건 환산
+                    {s.fills.size > 0 && ` (누락 ${s.fills.size}개 보정)`}
+                  </p>
+                  <p className={`text-xl font-bold ${isBest ? "text-emerald-600" : "text-slate-700"}`}>
+                    {formatMan(s.adjustedTotal)}원
+                  </p>
+                </div>
               </div>
-              {s.fills.size > 0 && (
-                <p className="mt-0.5 text-[11px] text-slate-400">
-                  누락 {s.fills.size}개 공정을 평균가로 보정
-                </p>
-              )}
-            </button>
-          );
-        })}
-      </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 나머지 업체 카드 — 기준 대비 ± 표시, 클릭하면 기준으로 승격 */}
+      {ordered.length > 1 && (
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))]">
+          {ordered
+            .filter((v) => v.id !== baseline.id)
+            .map((v) => {
+              const s = summaryOf(v.id);
+              const base = summaryOf(baseline.id);
+              const isBest = s.adjustedTotal === bestAdjusted && vendors.length > 1;
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => chooseBaseline(v.id)}
+                  className="rounded-2xl border-2 border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-slate-400"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold text-slate-800">{v.name}</span>
+                    <span className="shrink-0 text-[11px] text-slate-300">클릭해서 기준으로</span>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <p className="text-2xl font-bold tracking-tight text-slate-900">
+                      {formatMan(s.grandTotal)}원
+                    </p>
+                    <DiffPill diff={s.grandTotal - base.grandTotal} />
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    총액(VAT 포함)
+                    {s.perPyeong !== null && (
+                      <span className="ml-1.5 text-slate-500">· 평당 {formatMan(s.perPyeong)}원</span>
+                    )}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    공급가 {formatMan(s.subtotal)}원
+                    {s.overhead > 0 && ` + ${v.overheadLabel ?? "이윤"} ${v.overheadPercent}%`}
+                    {s.vat > 0 && " + VAT"}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <p
+                      className={`text-sm font-semibold ${
+                        isBest ? "text-emerald-600" : "text-slate-600"
+                      }`}
+                    >
+                      환산 {formatMan(s.adjustedTotal)}원
+                    </p>
+                    <DiffPill diff={s.adjustedTotal - base.adjustedTotal} />
+                    {isBest && (
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
+                        최저
+                      </span>
+                    )}
+                  </div>
+                  {s.fills.size > 0 && (
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      누락 {s.fills.size}개 공정을 평균가로 보정
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+        </div>
+      )}
 
       {/* 공정별 비교 — 업체가 많으면 가로 스크롤 */}
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">

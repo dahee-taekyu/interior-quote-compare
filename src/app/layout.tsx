@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "인테리어 견적 비교",
-  description: "업체별 인테리어 견적을 표준 공정 기준으로 비교하고, 누락 항목을 보정한 동일 조건 총액을 계산합니다.",
+  description: "업체별 인테리어 견적을 표준 공사 기준으로 정리하고, 공정·세부항목·총액을 비교합니다.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

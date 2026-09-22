@@ -61,42 +61,15 @@ export function applyVendorMeta(vendor: Vendor, subtotal: number): VendorTotals 
 
 export interface VendorSummary extends VendorTotals {
   vendorId: number;
-  /** 누락 공정을 타 업체 평균가로 채운 동일 조건 환산 총액 (이윤·부가세 동일 적용) */
-  adjustedTotal: number;
-  fills: Map<number, number>;
-  missingCount: number;
-  unknownCount: number;
 }
 
 export function summarize(vendors: Vendor[], categories: Category[]): VendorSummary[] {
   return vendors.map((v) => {
-    let subtotal = 0;
-    const fills = new Map<number, number>();
-    let missingCount = 0;
-    let unknownCount = 0;
-
-    for (const c of categories) {
-      const status = categoryStatus(v, c.id);
-      if (status === "INCLUDED") {
-        subtotal += categoryAmount(v, c.id);
-      } else if (status === "BUNDLED") {
-        // 다른 공정 금액에 이미 반영 — 보정 없음
-      } else {
-        if (status === "EXCLUDED") missingCount += 1;
-        else unknownCount += 1;
-        // '기타'는 업체마다 내용물이 달라 평균 보정이 왜곡되므로 제외
-        if (c.key !== "etc") {
-          const avg = marketAverage(vendors, c.id, v.id);
-          if (avg !== null) fills.set(c.id, avg);
-        }
-      }
-    }
-
-    const totals = applyVendorMeta(v, subtotal);
-    const fillSum = [...fills.values()].reduce((a, b) => a + b, 0);
-    const adjustedTotal = applyVendorMeta(v, subtotal + fillSum).grandTotal;
-
-    return { vendorId: v.id, ...totals, adjustedTotal, fills, missingCount, unknownCount };
+    const subtotal = categories.reduce(
+      (a, c) => (categoryStatus(v, c.id) === "INCLUDED" ? a + categoryAmount(v, c.id) : a),
+      0
+    );
+    return { vendorId: v.id, ...applyVendorMeta(v, subtotal) };
   });
 }
 

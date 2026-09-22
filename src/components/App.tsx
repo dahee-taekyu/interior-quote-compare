@@ -68,7 +68,7 @@ export default function App() {
       <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-slate-200 bg-slate-50/80 px-4 py-6">
         <h1 className="px-3 text-base font-bold text-slate-900">인테리어 견적 비교</h1>
         <p className="mt-1 px-3 text-[11px] leading-relaxed text-slate-400">
-          누락 공정을 평균가로 보정한 동일 조건 총액으로 비교합니다
+          업체별 견적을 표준 공사 기준으로 정리해 비교합니다
         </p>
 
         <nav className="mt-6 flex-1 space-y-6 overflow-y-auto">

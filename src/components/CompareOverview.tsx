@@ -67,7 +67,7 @@ export default function CompareOverview({
 
   const summaries = summarize(vendors, categories);
   const summaryOf = (id: number) => summaries.find((s) => s.vendorId === id)!;
-  const bestAdjusted = Math.min(...summaries.map((s) => s.adjustedTotal));
+  const bestTotal = Math.min(...summaries.map((s) => s.grandTotal));
   const gridCols = {
     gridTemplateColumns: `220px repeat(${ordered.length}, minmax(160px, 1fr))`,
   };
@@ -87,7 +87,7 @@ export default function CompareOverview({
       {/* 기준 업체 히어로 카드 */}
       {(() => {
         const s = summaryOf(baseline.id);
-        const isBest = s.adjustedTotal === bestAdjusted && vendors.length > 1;
+        const isBest = s.grandTotal === bestTotal && vendors.length > 1;
         return (
           <div className="rounded-2xl border-2 border-slate-900 bg-white p-6 shadow-md">
             <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-3">
@@ -99,7 +99,7 @@ export default function CompareOverview({
                   </span>
                   {isBest && (
                     <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
-                      환산 최저
+                      최저
                     </span>
                   )}
                 </div>
@@ -123,15 +123,6 @@ export default function CompareOverview({
                     <p className="text-xl font-bold text-slate-700">{formatMan(s.perPyeong)}원</p>
                   </div>
                 )}
-                <div>
-                  <p className="text-[11px] text-slate-400">
-                    동일 조건 환산
-                    {s.fills.size > 0 && ` (누락 ${s.fills.size}개 보정)`}
-                  </p>
-                  <p className={`text-xl font-bold ${isBest ? "text-emerald-600" : "text-slate-700"}`}>
-                    {formatMan(s.adjustedTotal)}원
-                  </p>
-                </div>
               </div>
             </div>
           </div>
@@ -146,7 +137,7 @@ export default function CompareOverview({
             .map((v) => {
               const s = summaryOf(v.id);
               const base = summaryOf(baseline.id);
-              const isBest = s.adjustedTotal === bestAdjusted && vendors.length > 1;
+              const isBest = s.grandTotal === bestTotal && vendors.length > 1;
               return (
                 <button
                   key={v.id}
@@ -174,25 +165,10 @@ export default function CompareOverview({
                     {s.overhead > 0 && ` + ${v.overheadLabel ?? "이윤"} ${v.overheadPercent}%`}
                     {s.vat > 0 && " + VAT"}
                   </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <p
-                      className={`text-sm font-semibold ${
-                        isBest ? "text-emerald-600" : "text-slate-600"
-                      }`}
-                    >
-                      환산 {formatMan(s.adjustedTotal)}원
-                    </p>
-                    <DiffPill diff={s.adjustedTotal - base.adjustedTotal} />
-                    {isBest && (
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
-                        최저
-                      </span>
-                    )}
-                  </div>
-                  {s.fills.size > 0 && (
-                    <p className="mt-0.5 text-[11px] text-slate-400">
-                      누락 {s.fills.size}개 공정을 평균가로 보정
-                    </p>
+                  {isBest && (
+                    <span className="mt-2 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
+                      최저
+                    </span>
                   )}
                 </button>
               );
@@ -265,13 +241,13 @@ export default function CompareOverview({
 
           <div className="grid border-t-2 border-slate-200 bg-slate-50 px-5 py-4" style={gridCols}>
             <div>
-              <p className="text-sm font-bold text-slate-800">동일 조건 환산 총액</p>
-              <p className="text-[11px] text-slate-400">누락·미확인 공정을 평균가로 보정</p>
+              <p className="text-sm font-bold text-slate-800">총액(VAT 포함)</p>
+              <p className="text-[11px] text-slate-400">공급가 + 이윤·공과잡비 + 부가세</p>
             </div>
             {ordered.map((v) => {
               const s = summaryOf(v.id);
-              const isBest = s.adjustedTotal === bestAdjusted && vendors.length > 1;
-              const baseAdj = summaryOf(baseline.id).adjustedTotal;
+              const isBest = s.grandTotal === bestTotal && vendors.length > 1;
+              const baseTotal = summaryOf(baseline.id).grandTotal;
               return (
                 <div key={v.id} className="text-right">
                   <p
@@ -279,9 +255,9 @@ export default function CompareOverview({
                       isBest ? "text-emerald-600" : "text-slate-900"
                     }`}
                   >
-                    {formatMan(s.adjustedTotal)}원
+                    {formatMan(s.grandTotal)}원
                   </p>
-                  {v.id !== baseline.id && <DiffPill diff={s.adjustedTotal - baseAdj} />}
+                  {v.id !== baseline.id && <DiffPill diff={s.grandTotal - baseTotal} />}
                 </div>
               );
             })}

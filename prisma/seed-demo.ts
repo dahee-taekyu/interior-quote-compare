@@ -213,6 +213,40 @@ const PARK_LINES: Line[] = [
   { cat: "etc", name: "기타공사 일괄", spec: "입주청소·보양·공과잡비 등", unit: "식", qty: 1, amount: 1950000, memo: "공사비 합계(45,226,000) 기준 역산 — 원본 대조 필요" },
 ];
 
+// ───── 이안윈도우 (상계은빛2단지, 2026-09-19 견적) ─────
+// 공종별 자재비/노무비 분리형 견적. 소계 49,340,000 + 공과잡비 986,800(=2%,
+// 시트 표기는 3%) = 50,326,800, VAT 포함 55,359,480 — 원본과 일치 검증.
+const IAN_LINES: Line[] = [
+  { cat: "scaffold", name: "공사준비", unit: "식", amount: 1000000, memo: "자재비" },
+  { cat: "demolition", name: "철거공사 노무비", unit: "식", amount: 2675000 },
+  { cat: "plumbing", name: "설비공사 자재비", unit: "식", amount: 950000 },
+  { cat: "plumbing", name: "설비공사 노무비", unit: "식", amount: 1400000 },
+  { cat: "windows", name: "창호공사", unit: "식", amount: 7240000, memo: "자재비(노무비 포함가로 추정)" },
+  { cat: "carpentry", name: "목공공사 자재비", unit: "식", amount: 2365000 },
+  { cat: "carpentry", name: "목공공사 노무비", unit: "식", amount: 2320000 },
+  { cat: "electric", name: "전기공사 자재비", unit: "식", amount: 1515000 },
+  { cat: "electric", name: "전기공사 노무비", unit: "식", amount: 1585000 },
+  { cat: "tile", name: "타일공사 자재비", unit: "식", amount: 750000 },
+  { cat: "tile", name: "타일공사 노무비", unit: "식", amount: 625000 },
+  { cat: "bathroom", name: "욕실공사 자재비", unit: "식", amount: 3300000 },
+  { cat: "bathroom", name: "욕실공사 노무비", unit: "식", amount: 1900000 },
+  { cat: "film", name: "필름공사 자재비", unit: "식", amount: 200000 },
+  { cat: "film", name: "필름공사 노무비", unit: "식", amount: 200000 },
+  { cat: "film", name: "도장공사 자재비", unit: "식", amount: 150000 },
+  { cat: "film", name: "도장공사 노무비", unit: "식", amount: 350000 },
+  { cat: "wallpaper", name: "도배공사 자재비", unit: "식", amount: 870000 },
+  { cat: "wallpaper", name: "도배공사 노무비", unit: "식", amount: 1900000 },
+  { cat: "flooring", name: "바닥공사", unit: "식", amount: 3565000, memo: "자재비(시공 포함가로 추정)" },
+  { cat: "furniture", name: "가구공사 자재비", unit: "식", amount: 8900000 },
+  { cat: "furniture", name: "가구공사 노무비", unit: "식", amount: 1950000 },
+  { cat: "door", name: "중문공사 자재비", unit: "식", amount: 1150000 },
+  { cat: "door", name: "중문공사 노무비", unit: "식", amount: 250000 },
+  { cat: "etc", name: "마감공사 자재비", unit: "식", amount: 830000 },
+  { cat: "etc", name: "마감공사 노무비", unit: "식", amount: 1400000 },
+  { cat: "etc", name: "디자인 컨설팅", spec: "디자인/자재 컨설팅", unit: "PY", amount: 0, isOption: true, memo: "무상 포함으로 표기" },
+  { cat: "etc", name: "시공 감리비", spec: "현장 관리/공정별 감리", unit: "PY", amount: 0, isOption: true, memo: "무상 포함으로 표기" },
+];
+
 async function main() {
   const categories = await prisma.category.findMany();
   const idOf = new Map(categories.map((c) => [c.key, c.id]));
@@ -282,7 +316,22 @@ async function main() {
     ]
   );
 
-  console.log("Seeded 2 real demo vendors");
+  await createVendor(
+    {
+      name: "이안윈도우",
+      memo: "상계은빛2단지 · 2026-09-19 견적 · 10일 이내 계약 시 40만원 벽 평탄화 서비스 · 공과잡비 시트 표기는 3%지만 실제 계산은 2%(986,800)",
+      vatIncluded: false,
+      overheadPercent: 2,
+      overheadLabel: "공과잡비",
+      adjustment: 0,
+    },
+    IAN_LINES,
+    [
+      { cat: "extension", status: "UNKNOWN", memo: "확장공사 항목 없음 — 미포함인지 목공에 묶였는지 확인 필요" },
+    ]
+  );
+
+  console.log("Seeded 3 real demo vendors");
 }
 
 main()
